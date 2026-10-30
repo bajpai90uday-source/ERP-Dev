@@ -809,12 +809,18 @@ public sealed class CommerceApiTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.Created, orderResponse.StatusCode);
         using var orderJson = JsonDocument.Parse(await orderResponse.Content.ReadAsStringAsync());
         var orderId = orderJson.RootElement.GetProperty("id").GetGuid();
+        Assert.Equal(3m, orderJson.RootElement.GetProperty("materials")[0]
+            .GetProperty("plannedQuantity").GetDecimal());
         var materialIssueId = orderJson.RootElement.GetProperty("materials")[0]
             .GetProperty("issueId").GetGuid();
         var dispatchBody = new[]
         {
             new { materialIssueId, quantity = 3m },
         };
+        using var overDispatch = await PostWithCsrfAsync(client,
+            $"/api/v1/job-work/orders/{orderId}/dispatch",
+            new[] { new { materialIssueId, quantity = 4m } }, "jobwork-dispatch-over-plan");
+        Assert.Equal(HttpStatusCode.Conflict, overDispatch.StatusCode);
         using var dispatch = await PostWithCsrfAsync(client,
             $"/api/v1/job-work/orders/{orderId}/dispatch", dispatchBody, "jobwork-dispatch");
         Assert.Equal(HttpStatusCode.OK, dispatch.StatusCode);

@@ -63,7 +63,7 @@ internal sealed record JobWorkOrderResponse(
     decimal OutstandingHeldMaterial, IReadOnlyList<JobWorkMaterialResponse> Materials,
     IReadOnlyList<JobWorkReceiptResponse> Receipts);
 internal sealed record JobWorkMaterialResponse(
-    Guid IssueId, Guid ItemId, Guid WarehouseId, decimal IssuedQuantity,
+    Guid IssueId, Guid ItemId, Guid WarehouseId, decimal? PlannedQuantity, decimal IssuedQuantity,
     decimal ReturnedQuantity, decimal OutstandingQuantity);
 internal sealed record JobWorkReceiptResponse(
     Guid Id, string Reference, decimal ProcessedQuantity, decimal RejectedQuantity,

@@ -117,6 +117,7 @@ internal sealed class JobWorkMaterialIssueConfiguration : IEntityTypeConfigurati
     public void Configure(EntityTypeBuilder<JobWorkMaterialIssue> entity)
     {
         MappingRules.ConfigureCompanyScoped(entity, "JobWorkMaterialIssues");
+        entity.Property(value => value.PlannedQuantity).HasPrecision(20, 6);
         entity.Property(value => value.IssuedQuantity).HasPrecision(20, 6);
         entity.Property(value => value.ReturnedQuantity).HasPrecision(20, 6);
         entity.Property(value => value.ConcurrencyVersion).IsConcurrencyToken();

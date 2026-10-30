@@ -220,7 +220,8 @@ internal sealed partial class SalesPurchaseService : IQualityJobWorkMaintenanceS
                     });
                 await db.SaveChangesAsync(cancellationToken);
                 return new MasterDataResult<QualityInspectionResponse>(
-                    await MapInspectionAsync(companyId, inspection, cancellationToken));
+                    await MapInspectionAsync(companyId, inspection, cancellationToken),
+                    StatusCodes.Status201Created);
             }, cancellationToken);
 
     public Task<MasterDataResult<QualityInspectionResponse>> ApproveInspectionAsync(
@@ -304,14 +305,15 @@ internal sealed partial class SalesPurchaseService : IQualityJobWorkMaintenanceS
                     return Conflict<bool>("A defect code with this code already exists.");
                 }
 
-                db.QualityDefectCodes.Add(new QualityDefectCode
+                var defectCode = new QualityDefectCode
                 {
                     Id = Guid.NewGuid(),
                     CompanyId = companyId,
                     Code = code,
                     Description = request.Description.Trim(),
-                });
-                AddEvent(companyId, actor, "quality-defect-code", Guid.NewGuid(), null,
+                };
+                db.QualityDefectCodes.Add(defectCode);
+                AddEvent(companyId, actor, "quality-defect-code", defectCode.Id, null,
                     "defect_code_created", new { Code = code });
                 await db.SaveChangesAsync(cancellationToken);
                 return new MasterDataResult<bool>(true, StatusCodes.Status201Created);
@@ -452,6 +454,7 @@ internal sealed partial class SalesPurchaseService : IQualityJobWorkMaintenanceS
                     {
                         Id = Guid.NewGuid(), CompanyId = companyId, JobWorkOrderId = order.Id,
                         ItemId = material.ItemId, WarehouseId = material.WarehouseId,
+                        PlannedQuantity = material.Quantity,
                     });
                 }
                 AddEvent(companyId, actor, "job-work-order", order.Id, null,
@@ -500,7 +503,13 @@ internal sealed partial class SalesPurchaseService : IQualityJobWorkMaintenanceS
 
                     var balance = await GetOrCreateStockBalanceAsync(companyId, issue.ItemId,
                         issue.WarehouseId, InventoryStockStatuses.Available, cancellationToken);
-                    var outstanding = await GetCustodyOutstandingAsync(companyId, issue.Id, cancellationToken);
+                    if (issue.PlannedQuantity is { } plannedQuantity
+                        && issue.IssuedQuantity + input.Quantity > plannedQuantity)
+                    {
+                        return Conflict<JobWorkOrderResponse>(
+                            "Dispatch quantity exceeds the material quantity planned for this order.");
+                    }
+
                     if (balance.OnHandQuantity - balance.ReservedQuantity < input.Quantity)
                     {
                         return Conflict<JobWorkOrderResponse>("Insufficient unreserved available stock for dispatch.");
@@ -1050,7 +1059,7 @@ internal sealed partial class SalesPurchaseService : IQualityJobWorkMaintenanceS
             var outstanding = await GetCustodyOutstandingAsync(companyId, issue.Id, cancellationToken);
             totalCustody += outstanding;
             materials.Add(new JobWorkMaterialResponse(issue.Id, issue.ItemId, issue.WarehouseId,
-                issue.IssuedQuantity, issue.ReturnedQuantity, outstanding));
+                issue.PlannedQuantity, issue.IssuedQuantity, issue.ReturnedQuantity, outstanding));
         }
         var receiptRows = await db.JobWorkReceipts.AsNoTracking().Where(value =>
                 value.CompanyId == companyId && value.JobWorkOrderId == order.Id)

@@ -278,6 +278,7 @@ public sealed class JobWorkMaterialIssue
     public Guid JobWorkOrderId { get; set; }
     public Guid ItemId { get; set; }
     public Guid WarehouseId { get; set; }
+    public decimal? PlannedQuantity { get; set; }
     public decimal IssuedQuantity { get; set; }
     public decimal ReturnedQuantity { get; set; }
     public int ConcurrencyVersion { get; set; }

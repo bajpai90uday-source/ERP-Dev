@@ -2007,6 +2007,10 @@ namespace Erp.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("JobWorkOrderId")
                         .HasColumnType("uuid");
 
+                    b.Property<decimal?>("PlannedQuantity")
+                        .HasPrecision(20, 6)
+                        .HasColumnType("numeric(20,6)");
+
                     b.Property<decimal>("ReturnedQuantity")
                         .HasPrecision(20, 6)
                         .HasColumnType("numeric(20,6)");
