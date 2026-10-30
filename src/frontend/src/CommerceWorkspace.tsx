@@ -246,6 +246,62 @@ export default function CommerceWorkspace({ kind, setError, onUnauthorized }: Pr
     }
   };
 
+  const openDispatch = async (record: CommerceRecord) => {
+    setDialogError("");
+    setError("");
+    try {
+      await loadFormOptions();
+      setDialog({ type: "fulfill", record });
+    } catch (requestError) {
+      if (isUnauthorized(requestError)) onUnauthorized();
+      else setError(messageOf(requestError));
+    }
+  };
+
+  const dispatchShipment = async (
+    record: CommerceRecord,
+    cartonNumber: string,
+    lineId: string,
+    quantity: string,
+    warehouseId: string,
+  ) => {
+    setBusy(true);
+    setDialogError("");
+    try {
+      const lineQuantity = Number(quantity);
+      const plan = await api<{ id: string }>("/api/v1/dispatch/shipments", {
+        method: "POST",
+        headers: { "Idempotency-Key": crypto.randomUUID() },
+        body: JSON.stringify({
+          salesOrderId: record.id,
+          lines: [{ salesOrderLineId: lineId, warehouseId, quantity: lineQuantity }],
+          cartons: [{
+            cartonNumber,
+            weight: 0,
+            contents: [{ salesOrderLineId: lineId, quantity: lineQuantity }],
+          }],
+        }),
+      });
+      await api(`/api/v1/dispatch/shipments/${plan.id}/authorize`, {
+        method: "POST",
+        headers: { "Idempotency-Key": crypto.randomUUID() },
+        body: JSON.stringify({}),
+      });
+      await api(`/api/v1/dispatch/shipments/${plan.id}/confirm`, {
+        method: "POST",
+        headers: { "Idempotency-Key": crypto.randomUUID() },
+        body: JSON.stringify({}),
+      });
+      setDialog(null);
+      await refresh();
+    } catch (requestError) {
+      if (isUnauthorized(requestError)) onUnauthorized();
+      else setDialogError(messageOf(requestError));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const command = async (
     record: CommerceRecord,
     action: string,
@@ -375,9 +431,8 @@ export default function CommerceWorkspace({ kind, setError, onUnauthorized }: Pr
                           <button className="text-button" onClick={() =>
                             void openEditor(record, true)}>Amend</button>
                           <button className="text-button" onClick={() => {
-                            setDialogError("");
-                            setDialog({ type: "fulfill", record });
-                          }}>Fulfill</button>
+                            void openDispatch(record);
+                          }}>Dispatch</button>
                         </>
                       )}
                       {kind === "purchase-orders"
@@ -453,8 +508,9 @@ export default function CommerceWorkspace({ kind, setError, onUnauthorized }: Pr
       )}
       {dialog?.type === "fulfill" && (
         <QuantityDialog
-          title={`Record fulfillment · ${label(dialog.record)}`}
-          fieldLabel="Fulfillment reference"
+          title={`Pack and dispatch · ${label(dialog.record)}`}
+          fieldLabel="Carton number"
+          fieldMaxLength={60}
           lineLabel="Order line"
           lines={dialog.record.lines
             .filter(line => (line.outstandingQuantity ?? 0) > 0)
@@ -463,14 +519,12 @@ export default function CommerceWorkspace({ kind, setError, onUnauthorized }: Pr
               label: `${line.variantCode} · ${line.outstandingQuantity} remaining`,
               maximum: line.outstandingQuantity!,
             }))}
+          warehouseOptions={options?.warehouses}
           busy={busy}
           error={dialogError}
           onClose={() => setDialog(null)}
-          onSubmit={(reference, lineId, quantity) =>
-            void command(dialog.record, "fulfillments", {
-              reference,
-              lines: [{ salesOrderLineId: lineId, quantity: Number(quantity) }],
-            })}
+          onSubmit={(cartonNumber, lineId, quantity, warehouseId) =>
+            void dispatchShipment(dialog.record, cartonNumber, lineId, quantity, warehouseId)}
         />
       )}
       {dialog?.type === "receive" && options && (
@@ -802,6 +856,7 @@ function ReasonDialog({
 function QuantityDialog({
   title,
   fieldLabel,
+  fieldMaxLength = 80,
   lineLabel,
   lines,
   warehouseOptions,
@@ -812,6 +867,7 @@ function QuantityDialog({
 }: {
   title: string;
   fieldLabel: string;
+  fieldMaxLength?: number;
   lineLabel: string;
   lines: { id: string; label: string; maximum: number }[];
   warehouseOptions?: SelectOption[];
@@ -832,7 +888,7 @@ function QuantityDialog({
         <header className="dialog-heading"><h2>{title}</h2></header>
         {error && <div className="alert" role="alert">{error}</div>}
         {lines.length === 0 ? <p className="muted">There is no outstanding quantity to record.</p> : <>
-          <label>{fieldLabel}<input required maxLength={80} value={reference}
+          <label>{fieldLabel}<input required maxLength={fieldMaxLength} value={reference}
             onChange={event => setReference(event.target.value)} /></label>
           <label>{lineLabel}<select required value={lineId}
             onChange={event => {
@@ -845,7 +901,7 @@ function QuantityDialog({
           <label>Quantity<input required type="number" min="0.000001" step="0.000001"
             max={selectedLine?.maximum} value={quantity}
             onChange={event => setQuantity(event.target.value)} /></label>
-          {warehouseOptions && <label>Receipt warehouse<select required value={warehouseId}
+          {warehouseOptions && <label>Warehouse<select required value={warehouseId}
             onChange={event => setWarehouseId(event.target.value)}>
             <option value="">Select warehouse</option>
             {warehouseOptions.map(option =>

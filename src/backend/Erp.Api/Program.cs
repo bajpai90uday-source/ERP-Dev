@@ -1,6 +1,7 @@
 using Erp.Api.Security;
 using Erp.Api.MasterData;
 using Erp.Api.Commerce;
+using Erp.Api.Operations;
 using Erp.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
@@ -15,8 +16,13 @@ builder.Services.AddDbContext<ErpDbContext>(options =>
     options.UseNpgsql(connectionString));
 builder.Services.AddErpSecurity(builder.Configuration);
 builder.Services.AddOpenApi();
+builder.Services.Configure<NotificationEmailOptions>(
+    builder.Configuration.GetSection("Notifications:Email"));
+builder.Services.AddHostedService<NotificationEmailWorker>();
 builder.Services.AddScoped<IMasterDataService, MasterDataService>();
 builder.Services.AddScoped<ISalesPurchaseService, SalesPurchaseService>();
+builder.Services.AddScoped<IDispatchService>(services =>
+    (SalesPurchaseService)services.GetRequiredService<ISalesPurchaseService>());
 builder.Services.AddScoped<IQualityJobWorkMaintenanceService>(services =>
     (SalesPurchaseService)services.GetRequiredService<ISalesPurchaseService>());
 builder.Services.AddScoped<IManufacturingService>(services =>
@@ -43,6 +49,9 @@ if (app.Environment.IsDevelopment())
 app.MapSecurityEndpoints(builder.Configuration);
 app.MapMasterDataEndpoints();
 app.MapCommerceEndpoints();
+app.MapHrEndpoints();
+app.MapNotificationEndpoints();
+app.MapManagementReportEndpoints();
 
 app.Run();
 

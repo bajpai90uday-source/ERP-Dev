@@ -203,6 +203,20 @@ public sealed class CommerceApiTests : IAsyncLifetime
     public async Task SalesWorkflowRequiresIndependentApprovalAndRevisionsConfirmedOrders()
     {
         var master = await CreateSalesMasterDataAsync();
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<ErpDbContext>();
+            db.InventoryStockBalances.Add(new InventoryStockBalance
+            {
+                Id = Guid.NewGuid(),
+                CompanyId = companyId,
+                ItemId = master.ItemId,
+                WarehouseId = master.WarehouseId,
+                StockStatus = InventoryStockStatuses.Available,
+                OnHandQuantity = 6m,
+            });
+            await db.SaveChangesAsync();
+        }
         var request = new
         {
             customerId = master.CustomerId,
@@ -308,16 +322,213 @@ public sealed class CommerceApiTests : IAsyncLifetime
                 reference = "shipment-001",
                 lines = new[] { new { salesOrderLineId = amendedLineId, quantity = 3m } },
             }, "sales-fulfillment");
-        Assert.Equal(HttpStatusCode.OK, fulfillment.StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, fulfillment.StatusCode);
+
+        var firstDispatchBody = new
+        {
+            salesOrderId = orderId,
+            lines = new[]
+            {
+                new { salesOrderLineId = amendedLineId, warehouseId = master.WarehouseId, quantity = 3m },
+            },
+            cartons = new[]
+            {
+                new
+                {
+                    cartonNumber = "CARTON-001",
+                    weight = 1.5m,
+                    contents = new[] { new { salesOrderLineId = amendedLineId, quantity = 3m } },
+                },
+            },
+        };
+        using var planned = await PostWithCsrfAsync(client, "/api/v1/dispatch/shipments",
+            firstDispatchBody, "sales-dispatch-plan-1");
+        Assert.Equal(HttpStatusCode.Created, planned.StatusCode);
+        using var plannedJson = JsonDocument.Parse(await planned.Content.ReadAsStringAsync());
+        var shipmentId = plannedJson.RootElement.GetProperty("id").GetGuid();
+        Assert.Equal("S", plannedJson.RootElement.GetProperty("lines")[0]
+            .GetProperty("sizeCode").GetString());
+        Assert.Equal("BLK", plannedJson.RootElement.GetProperty("lines")[0]
+            .GetProperty("colorCode").GetString());
+
+        using var authorized = await PostWithCsrfAsync(client,
+            $"/api/v1/dispatch/shipments/{shipmentId}/authorize", new { }, "sales-dispatch-authorize-1");
+        Assert.Equal(HttpStatusCode.OK, authorized.StatusCode);
+        using var dispatched = await PostWithCsrfAsync(client,
+            $"/api/v1/dispatch/shipments/{shipmentId}/confirm", new { }, "sales-dispatch-confirm-1");
+        Assert.Equal(HttpStatusCode.OK, dispatched.StatusCode);
 
         using var overFulfillment = await PostWithCsrfAsync(client,
-            $"/api/v1/sales/orders/{orderId}/fulfillments",
+            "/api/v1/dispatch/shipments",
             new
             {
-                reference = "shipment-002",
-                lines = new[] { new { salesOrderLineId = amendedLineId, quantity = 5m } },
-            }, "sales-over-fulfillment");
-        Assert.Equal(HttpStatusCode.BadRequest, overFulfillment.StatusCode);
+                salesOrderId = orderId,
+                lines = new[]
+                {
+                    new { salesOrderLineId = amendedLineId, warehouseId = master.WarehouseId, quantity = 5m },
+                },
+                cartons = new[]
+                {
+                    new
+                    {
+                        cartonNumber = "CARTON-002",
+                        weight = 1m,
+                        contents = new[] { new { salesOrderLineId = amendedLineId, quantity = 5m } },
+                    },
+                },
+            }, "sales-dispatch-plan-over-order");
+        Assert.Equal(HttpStatusCode.Conflict, overFulfillment.StatusCode);
+
+        var finalDispatchBody = new
+        {
+            salesOrderId = orderId,
+            lines = new[]
+            {
+                new { salesOrderLineId = amendedLineId, warehouseId = master.WarehouseId, quantity = 4m },
+            },
+            cartons = new[]
+            {
+                new
+                {
+                    cartonNumber = "CARTON-003",
+                    weight = 1m,
+                    contents = new[] { new { salesOrderLineId = amendedLineId, quantity = 4m } },
+                },
+            },
+        };
+        using var finalPlan = await PostWithCsrfAsync(client, "/api/v1/dispatch/shipments",
+            finalDispatchBody, "sales-dispatch-plan-2");
+        Assert.Equal(HttpStatusCode.Created, finalPlan.StatusCode);
+        using var finalPlanJson = JsonDocument.Parse(await finalPlan.Content.ReadAsStringAsync());
+        var finalShipmentId = finalPlanJson.RootElement.GetProperty("id").GetGuid();
+        using var insufficientStock = await PostWithCsrfAsync(client,
+            $"/api/v1/dispatch/shipments/{finalShipmentId}/authorize", new { },
+            "sales-dispatch-authorize-insufficient-stock");
+        Assert.Equal(HttpStatusCode.Conflict, insufficientStock.StatusCode);
+        using (var replenishScope = factory.Services.CreateScope())
+        {
+            var db = replenishScope.ServiceProvider.GetRequiredService<ErpDbContext>();
+            var balance = await db.InventoryStockBalances.SingleAsync(value =>
+                value.CompanyId == companyId && value.ItemId == master.ItemId
+                && value.WarehouseId == master.WarehouseId);
+            balance.OnHandQuantity += 1m;
+            await db.SaveChangesAsync();
+        }
+        using var finalAuthorized = await PostWithCsrfAsync(client,
+            $"/api/v1/dispatch/shipments/{finalShipmentId}/authorize", new { }, "sales-dispatch-authorize-2");
+        Assert.Equal(HttpStatusCode.OK, finalAuthorized.StatusCode);
+        using var finalDispatched = await PostWithCsrfAsync(client,
+            $"/api/v1/dispatch/shipments/{finalShipmentId}/confirm", new { }, "sales-dispatch-confirm-2");
+        Assert.Equal(HttpStatusCode.OK, finalDispatched.StatusCode);
+
+        using var report = await client.GetAsync("/api/v1/reports/operations");
+        Assert.Equal(HttpStatusCode.OK, report.StatusCode);
+        using var reportJson = JsonDocument.Parse(await report.Content.ReadAsStringAsync());
+        Assert.Equal(7m, reportJson.RootElement.GetProperty("dispatchPerformance")
+            .GetProperty("dispatchedQuantity").GetDecimal());
+        Assert.Equal(2, reportJson.RootElement.GetProperty("dispatchPerformance")
+            .GetProperty("shipmentStatuses").EnumerateArray()
+            .Single(value => value.GetProperty("status").GetString() == "dispatched")
+            .GetProperty("shipmentCount").GetInt32());
+        Assert.Equal(2, reportJson.RootElement.GetProperty("inventoryLedger")
+            .EnumerateArray()
+            .Count(value => value.GetProperty("referenceType").GetString() == "dispatch-shipment"));
+        using var notificationsResponse = await client.GetAsync("/api/v1/notifications");
+        Assert.Equal(HttpStatusCode.OK, notificationsResponse.StatusCode);
+        using var notificationsJson = JsonDocument.Parse(
+            await notificationsResponse.Content.ReadAsStringAsync());
+        var dispatchNotification = notificationsJson.RootElement.EnumerateArray()
+            .First(value => value.GetProperty("title").GetString() == "Shipment dispatched");
+        using var notificationRead = await PostWithCsrfAsync(client,
+            $"/api/v1/notifications/{dispatchNotification.GetProperty("id").GetGuid()}/read",
+            new { }, "dispatch-notification-read");
+        Assert.Equal(HttpStatusCode.NoContent, notificationRead.StatusCode);
+        using var scopeAfterDispatch = factory.Services.CreateScope();
+        var finalDb = scopeAfterDispatch.ServiceProvider.GetRequiredService<ErpDbContext>();
+        Assert.Equal(0m, await finalDb.InventoryStockBalances
+            .Where(value => value.CompanyId == companyId && value.ItemId == master.ItemId
+                && value.WarehouseId == master.WarehouseId)
+            .Select(value => value.OnHandQuantity)
+            .SingleAsync());
+        Assert.Equal(7m, await finalDb.SalesOrderFulfillments
+            .Where(value => value.CompanyId == companyId && value.SalesOrderLineId == amendedLineId)
+            .SumAsync(value => value.Quantity));
+        Assert.Equal(2, await finalDb.InventoryLedgerEntries
+            .CountAsync(value => value.CompanyId == companyId
+                && value.ReferenceType == "dispatch-shipment"));
+    }
+
+    [Fact]
+    public async Task HrEmployeeDirectoryOmitsConfidentialFieldsFromOrdinaryReads()
+    {
+        using var departmentResponse = await PostWithCsrfAsync(client,
+            "/api/v1/hr/departments", new { code = "OPS", name = "Operations" }, "hr-department-create");
+        Assert.Equal(HttpStatusCode.Created, departmentResponse.StatusCode);
+        using var departmentJson = JsonDocument.Parse(await departmentResponse.Content.ReadAsStringAsync());
+        var departmentId = departmentJson.RootElement.GetProperty("id").GetGuid();
+
+        using var designationResponse = await PostWithCsrfAsync(client,
+            "/api/v1/hr/designations", new { code = "OPR", name = "Operator" }, "hr-designation-create");
+        Assert.Equal(HttpStatusCode.Created, designationResponse.StatusCode);
+        using var designationJson = JsonDocument.Parse(await designationResponse.Content.ReadAsStringAsync());
+        var designationId = designationJson.RootElement.GetProperty("id").GetGuid();
+
+        using var employeeResponse = await PostWithCsrfAsync(client,
+            "/api/v1/hr/employees",
+            new
+            {
+                employeeNumber = "EMP-001",
+                firstName = "Test",
+                lastName = "Operator",
+                departmentId,
+                designationId,
+                hireDate = "2025-01-01",
+                personalEmail = "private@example.test",
+                phone = "+1-555-0100",
+                birthDate = "1990-01-01",
+            }, "hr-employee-create");
+        Assert.Equal(HttpStatusCode.Created, employeeResponse.StatusCode);
+        using var employeeJson = JsonDocument.Parse(await employeeResponse.Content.ReadAsStringAsync());
+        var employeeId = employeeJson.RootElement.GetProperty("id").GetGuid();
+
+        using var employeesResponse = await client.GetAsync("/api/v1/hr/employees");
+        Assert.Equal(HttpStatusCode.OK, employeesResponse.StatusCode);
+        using var employeesJson = JsonDocument.Parse(await employeesResponse.Content.ReadAsStringAsync());
+        var employee = employeesJson.RootElement.EnumerateArray()
+            .Single(value => value.GetProperty("id").GetGuid() == employeeId);
+        Assert.False(employee.TryGetProperty("personalEmail", out _));
+        Assert.False(employee.TryGetProperty("phone", out _));
+        Assert.False(employee.TryGetProperty("birthDate", out _));
+
+        using var rolesResponse = await client.GetAsync("/api/v1/admin/roles");
+        rolesResponse.EnsureSuccessStatusCode();
+        using var rolesJson = JsonDocument.Parse(await rolesResponse.Content.ReadAsStringAsync());
+        var hrRoleId = rolesJson.RootElement.EnumerateArray()
+            .Single(value => value.GetProperty("code").GetString() == "HR")
+            .GetProperty("id").GetGuid();
+        using var hrUserResponse = await PostWithCsrfAsync(client, "/api/v1/admin/users",
+            new
+            {
+                email = "hr-user@example.test",
+                displayName = "HR User",
+                password = "Human-resources-Password-03!",
+                roleIds = new[] { hrRoleId },
+            }, "hr-user-create");
+        Assert.Equal(HttpStatusCode.Created, hrUserResponse.StatusCode);
+        using var hrClient = CreateClient();
+        Assert.Equal(HttpStatusCode.OK, (await LoginAsync(hrClient, "hr-user@example.test",
+            "Human-resources-Password-03!", companyId)).StatusCode);
+        using var confidentialDenied = await hrClient.GetAsync(
+            $"/api/v1/hr/employees/{employeeId}/confidential");
+        Assert.Equal(HttpStatusCode.Forbidden, confidentialDenied.StatusCode);
+
+        using var confidentialResponse = await approverClient.GetAsync(
+            $"/api/v1/hr/employees/{employeeId}/confidential");
+        Assert.Equal(HttpStatusCode.OK, confidentialResponse.StatusCode);
+        using var confidentialJson = JsonDocument.Parse(
+            await confidentialResponse.Content.ReadAsStringAsync());
+        Assert.Equal("private@example.test",
+            confidentialJson.RootElement.GetProperty("personalEmail").GetString());
     }
 
     [Fact]
@@ -986,7 +1197,7 @@ public sealed class CommerceApiTests : IAsyncLifetime
         return (supplier, item, unit, warehouse);
     }
 
-    private async Task<(Guid CustomerId, Guid ProductId, Guid VariantId)> CreateSalesMasterDataAsync()
+    private async Task<(Guid CustomerId, Guid ProductId, Guid VariantId, Guid ItemId, Guid WarehouseId)> CreateSalesMasterDataAsync()
     {
         var customer = await CreateMasterAsync("/api/v1/master-data/customers", new
         {
@@ -1015,6 +1226,11 @@ public sealed class CommerceApiTests : IAsyncLifetime
             purchaseUnitId = unit,
             purchaseToStockFactor = 1m,
         });
+        var warehouse = await CreateMasterAsync("/api/v1/master-data/warehouses", new
+        {
+            code = "WH-SALES",
+            name = "Finished Goods Warehouse",
+        });
         var product = await CreateMasterAsync("/api/v1/master-data/products", new
         {
             code = "PRODUCT-TEST",
@@ -1031,7 +1247,7 @@ public sealed class CommerceApiTests : IAsyncLifetime
             colorCode = "BLK",
             colorName = "Black",
         });
-        return (customer, product, variant);
+        return (customer, product, variant, item, warehouse);
     }
 
     private async Task<Guid> CreateMasterAsync(string path, object body)

@@ -22,12 +22,12 @@ internal sealed class PermissionAuthorizationHandler(ErpDbContext db)
             return;
         }
 
+        var moduleAccessCode = requirement.PermissionCode == "hr.confidential.read"
+            ? "hr.access"
+            : $"{requirement.PermissionCode[..requirement.PermissionCode.LastIndexOf('.') ]}.access";
         string[] permissionCodes = requirement.PermissionCode.EndsWith(".access", StringComparison.Ordinal)
             ? [requirement.PermissionCode]
-            : [
-                $"{requirement.PermissionCode[..requirement.PermissionCode.LastIndexOf('.') ]}.access",
-                requirement.PermissionCode,
-            ];
+            : [moduleAccessCode, requirement.PermissionCode];
         var grantedCount = await db.UserCompanyRoles
             .AsNoTracking()
             .Where(membership =>

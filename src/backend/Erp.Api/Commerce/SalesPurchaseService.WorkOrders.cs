@@ -2,6 +2,7 @@ using System.Text.Json;
 using Erp.Api.MasterData;
 using Erp.Domain.Commerce;
 using Erp.Domain.MasterData;
+using Erp.Domain.Operations;
 using Erp.Domain.Products;
 using Microsoft.EntityFrameworkCore;
 
@@ -936,7 +937,8 @@ internal sealed partial class SalesPurchaseService
 
     private void AddWorkOrderEvent(
         Guid companyId, MasterDataActor actor, Guid workOrderId,
-        string action, object details, string? reason = null) =>
+        string action, object details, string? reason = null)
+    {
         db.WorkOrderTransactionEvents.Add(new WorkOrderTransactionEvent
         {
             Id = Guid.NewGuid(),
@@ -947,6 +949,20 @@ internal sealed partial class SalesPurchaseService
             Reason = reason,
             DetailsJson = JsonSerializer.Serialize(details),
         });
+        if (action == "released")
+        {
+            db.InAppNotifications.Add(new InAppNotification
+            {
+                Id = Guid.NewGuid(),
+                CompanyId = companyId,
+                Category = "production",
+                Title = "Work Order released",
+                Message = $"Work Order {workOrderId} was released to production.",
+                SourceType = "work-order-release",
+                SourceId = workOrderId,
+            });
+        }
+    }
 
     private sealed record ReservationAllocation(
         Guid MaterialRequirementId,

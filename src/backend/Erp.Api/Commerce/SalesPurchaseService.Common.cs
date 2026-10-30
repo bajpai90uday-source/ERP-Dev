@@ -4,6 +4,7 @@ using Erp.Api.MasterData;
 using Erp.Domain.Commerce;
 using Erp.Domain.MasterData;
 using Erp.Domain.Products;
+using Erp.Domain.Operations;
 using Erp.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
@@ -12,7 +13,8 @@ namespace Erp.Api.Commerce;
 
 internal sealed partial class SalesPurchaseService(
     ErpDbContext db,
-    ILogger<SalesPurchaseService> logger) : ISalesPurchaseService, IManufacturingService
+    ILogger<SalesPurchaseService> logger) : ISalesPurchaseService, IManufacturingService,
+    IDispatchService
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
@@ -131,7 +133,8 @@ internal sealed partial class SalesPurchaseService(
         int? revisionNumber,
         string action,
         object details,
-        string? reason = null) =>
+        string? reason = null)
+    {
         db.BusinessTransactionEvents.Add(new BusinessTransactionEvent
         {
             Id = Guid.NewGuid(),
@@ -146,6 +149,51 @@ internal sealed partial class SalesPurchaseService(
             DetailsJson = JsonSerializer.Serialize(details, JsonOptions),
             CorrelationId = actor.CorrelationId,
         });
+        var category = string.Empty;
+        var title = string.Empty;
+        if (aggregateType is "sales-order" or "purchase-order" or "purchase-requisition"
+            && (action == "submit" || action.Contains("submitted", StringComparison.Ordinal)))
+        {
+            category = "approval";
+            title = "Approval required";
+        }
+        else if (aggregateType == "quality-inspection"
+            && action is "inspection_created" or "inspection_approved")
+        {
+            category = "quality";
+            title = action == "inspection_created"
+                ? "Quality inspection awaiting review"
+                : "Quality inspection approved";
+        }
+        else if (aggregateType == "maintenance-request" && action == "maintenance_request_created")
+        {
+            category = "maintenance";
+            title = "Maintenance request created";
+        }
+        else if (aggregateType == "machine-downtime" && action == "downtime_started")
+        {
+            category = "maintenance";
+            title = "Machine downtime reported";
+        }
+        else if (aggregateType == "dispatch-shipment" && action == "dispatch_confirmed")
+        {
+            category = "dispatch";
+            title = "Shipment dispatched";
+        }
+        if (category.Length > 0)
+        {
+            db.InAppNotifications.Add(new InAppNotification
+            {
+                Id = Guid.NewGuid(),
+                CompanyId = companyId,
+                Category = category,
+                Title = title,
+                Message = $"{aggregateType} {action.Replace('_', ' ')} ({aggregateId})",
+                SourceType = aggregateType,
+                SourceId = aggregateId,
+            });
+        }
+    }
 
     private async Task<IReadOnlyList<TransactionHistoryResponse>> GetHistoryAsync(
         Guid companyId,

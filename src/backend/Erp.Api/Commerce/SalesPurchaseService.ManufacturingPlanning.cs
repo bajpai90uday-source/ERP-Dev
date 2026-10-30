@@ -1,6 +1,7 @@
 using Erp.Api.MasterData;
 using Erp.Domain.Commerce;
 using Erp.Domain.MasterData;
+using Erp.Domain.Operations;
 using Erp.Domain.Products;
 using Microsoft.EntityFrameworkCore;
 
@@ -244,7 +245,8 @@ internal sealed partial class SalesPurchaseService
                 var rows = await NetMaterialRequirementsAsync(
                     companyId, requirements, request.ThroughDate, cancellationToken);
                 var calculatedAt = DateTimeOffset.UtcNow;
-                AddEvent(companyId, actor, "mrp-run", Guid.NewGuid(), null,
+                var mrpRunId = Guid.NewGuid();
+                AddEvent(companyId, actor, "mrp-run", mrpRunId, null,
                     "calculated", new
                     {
                         request.FromDate,
@@ -252,6 +254,20 @@ internal sealed partial class SalesPurchaseService
                         materialCount = rows.Count,
                         sourceOrders = demands.Count,
                     });
+                var shortageCount = rows.Count(value => value.NetRequirement > 0m);
+                if (shortageCount > 0)
+                {
+                    db.InAppNotifications.Add(new InAppNotification
+                    {
+                        Id = Guid.NewGuid(),
+                        CompanyId = companyId,
+                        Category = "material-shortage",
+                        Title = "Material shortages identified",
+                        Message = $"MRP identified shortages for {shortageCount} material line(s).",
+                        SourceType = "mrp-run",
+                        SourceId = mrpRunId,
+                    });
+                }
                 await db.SaveChangesAsync(cancellationToken);
                 return new MasterDataResult<MrpRunResponse>(
                     new MrpRunResponse(request.FromDate, request.ThroughDate, calculatedAt, rows));

@@ -2,6 +2,7 @@ using Erp.Domain.MasterData;
 using Erp.Domain.Commerce;
 using Erp.Domain.Platform;
 using Erp.Domain.Products;
+using Erp.Domain.Operations;
 using Microsoft.EntityFrameworkCore;
 
 namespace Erp.Infrastructure.Persistence;
@@ -69,6 +70,21 @@ public sealed class ErpDbContext(DbContextOptions<ErpDbContext> options) : DbCon
     public DbSet<GoodsReceiptLine> GoodsReceiptLines => Set<GoodsReceiptLine>();
     public DbSet<BusinessTransactionEvent> BusinessTransactionEvents => Set<BusinessTransactionEvent>();
     public DbSet<TransactionIdempotencyRecord> TransactionIdempotencyRecords => Set<TransactionIdempotencyRecord>();
+    public DbSet<DispatchShipment> DispatchShipments => Set<DispatchShipment>();
+    public DbSet<DispatchShipmentLine> DispatchShipmentLines => Set<DispatchShipmentLine>();
+    public DbSet<DispatchCarton> DispatchCartons => Set<DispatchCarton>();
+    public DbSet<DispatchCartonLine> DispatchCartonLines => Set<DispatchCartonLine>();
+    public DbSet<HrDepartment> HrDepartments => Set<HrDepartment>();
+    public DbSet<HrDesignation> HrDesignations => Set<HrDesignation>();
+    public DbSet<Employee> Employees => Set<Employee>();
+    public DbSet<HrShift> HrShifts => Set<HrShift>();
+    public DbSet<AttendanceRecord> AttendanceRecords => Set<AttendanceRecord>();
+    public DbSet<LeaveRecord> LeaveRecords => Set<LeaveRecord>();
+    public DbSet<EmployeeSkill> EmployeeSkills => Set<EmployeeSkill>();
+    public DbSet<TrainingRecord> TrainingRecords => Set<TrainingRecord>();
+    public DbSet<InAppNotification> InAppNotifications => Set<InAppNotification>();
+    public DbSet<NotificationReadReceipt> NotificationReadReceipts => Set<NotificationReadReceipt>();
+    public DbSet<NotificationDeliveryLog> NotificationDeliveryLogs => Set<NotificationDeliveryLog>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

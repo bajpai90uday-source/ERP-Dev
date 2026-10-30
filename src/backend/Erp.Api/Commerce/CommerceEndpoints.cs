@@ -9,6 +9,7 @@ internal static class CommerceEndpoints
     public static void MapCommerceEndpoints(this WebApplication app)
     {
         MapSalesOrders(app);
+        MapDispatch(app);
         MapPurchaseRequisitions(app);
         MapPurchaseOrders(app);
         MapManufacturing(app);
@@ -168,6 +169,46 @@ internal static class CommerceEndpoints
             .WithSummary("Get the audit history of a sales order")
             .Produces<IReadOnlyList<TransactionHistoryResponse>>()
             .Produces(StatusCodes.Status404NotFound);
+    }
+
+    private static void MapDispatch(WebApplication app)
+    {
+        var dispatch = app.MapGroup("/api/v1/dispatch");
+        dispatch.MapGet("/shipments", async (
+            HttpContext context, IDispatchService service, CancellationToken cancellationToken) =>
+            Results.Ok(await service.ListDispatchShipmentsAsync(
+                CompanyId(context.User), cancellationToken)))
+            .RequireAuthorization(PermissionPolicies.For("dispatch.read"));
+        dispatch.MapPost("/shipments", async (
+            HttpContext context, DispatchPlanRequest request, IDispatchService service,
+            CancellationToken cancellationToken) =>
+        {
+            var result = await service.CreateDispatchPlanAsync(
+                CompanyId(context.User), Actor(context), IdempotencyKey(context),
+                request, cancellationToken);
+            return ToResult(result, result.ResourceId is { } id
+                ? $"/api/v1/dispatch/shipments/{id}" : null);
+        })
+            .RequireAuthorization(PermissionPolicies.For("dispatch.create"))
+            .Produces<DispatchShipmentResponse>(StatusCodes.Status201Created)
+            .ProducesValidationProblem()
+            .Produces(StatusCodes.Status409Conflict);
+        dispatch.MapPost("/shipments/{id:guid}/authorize", async (
+            Guid id, HttpContext context, IDispatchService service,
+            CancellationToken cancellationToken) =>
+            ToResult(await service.AuthorizeDispatchAsync(
+                CompanyId(context.User), Actor(context), id, IdempotencyKey(context), cancellationToken)))
+            .RequireAuthorization(PermissionPolicies.For("dispatch.ship"))
+            .Produces<DispatchShipmentResponse>()
+            .Produces(StatusCodes.Status409Conflict);
+        dispatch.MapPost("/shipments/{id:guid}/confirm", async (
+            Guid id, HttpContext context, IDispatchService service,
+            CancellationToken cancellationToken) =>
+            ToResult(await service.ConfirmDispatchAsync(
+                CompanyId(context.User), Actor(context), id, IdempotencyKey(context), cancellationToken)))
+            .RequireAuthorization(PermissionPolicies.For("dispatch.ship"))
+            .Produces<DispatchShipmentResponse>()
+            .Produces(StatusCodes.Status409Conflict);
     }
 
     private static void MapPurchaseRequisitions(WebApplication app)

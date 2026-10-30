@@ -1,6 +1,7 @@
 using Erp.Api.MasterData;
 using Erp.Domain.Commerce;
 using Erp.Domain.MasterData;
+using Erp.Domain.Operations;
 using Erp.Domain.Products;
 using Microsoft.EntityFrameworkCore;
 
@@ -28,6 +29,35 @@ internal sealed partial class SalesPurchaseService
         foreach (var order in orders)
         {
             rows.Add(await MapProductionPlanAsync(companyId, order, cancellationToken));
+        }
+
+        var delayedRows = rows.Where(value => value.ScheduleStatus == "delayed").ToArray();
+        if (delayedRows.Length > 0)
+        {
+            var delayedIds = delayedRows.Select(value => value.WorkOrderId).ToArray();
+            var existingIds = await db.InAppNotifications.AsNoTracking()
+                .Where(value => value.CompanyId == companyId
+                    && value.SourceType == "production-delay"
+                    && delayedIds.Contains(value.SourceId))
+                .Select(value => value.SourceId)
+                .ToArrayAsync(cancellationToken);
+            foreach (var delayed in delayedRows.Where(value => !existingIds.Contains(value.WorkOrderId)))
+            {
+                db.InAppNotifications.Add(new InAppNotification
+                {
+                    Id = Guid.NewGuid(),
+                    CompanyId = companyId,
+                    Category = "production",
+                    Title = "Production delay",
+                    Message = $"Work Order {delayed.WorkOrderNumber} is past its planned end date with output remaining.",
+                    SourceType = "production-delay",
+                    SourceId = delayed.WorkOrderId,
+                });
+            }
+            if (db.ChangeTracker.HasChanges())
+            {
+                await db.SaveChangesAsync(cancellationToken);
+            }
         }
 
         return new PageResponse<ProductionPlanResponse>(rows, page, pageSize, total);
