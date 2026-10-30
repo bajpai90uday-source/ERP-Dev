@@ -17,6 +17,10 @@ builder.Services.AddErpSecurity(builder.Configuration);
 builder.Services.AddOpenApi();
 builder.Services.AddScoped<IMasterDataService, MasterDataService>();
 builder.Services.AddScoped<ISalesPurchaseService, SalesPurchaseService>();
+builder.Services.AddScoped<IQualityJobWorkMaintenanceService>(services =>
+    (SalesPurchaseService)services.GetRequiredService<ISalesPurchaseService>());
+builder.Services.AddScoped<IManufacturingService>(services =>
+    (SalesPurchaseService)services.GetRequiredService<ISalesPurchaseService>());
 
 var app = builder.Build();
 if (!app.Environment.IsDevelopment())

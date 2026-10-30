@@ -158,6 +158,7 @@ public sealed class GoodsReceipt
     public Guid CompanyId { get; set; }
     public string ReceiptNumber { get; set; } = string.Empty;
     public Guid PurchaseOrderRevisionId { get; set; }
+    public Guid? WarehouseId { get; set; }
     public string SupplierDeliveryReference { get; set; } = string.Empty;
     public DateTimeOffset ReceivedAt { get; set; } = DateTimeOffset.UtcNow;
     public string CreatedBySubject { get; set; } = string.Empty;

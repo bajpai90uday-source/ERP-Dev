@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using System.Text.Json;
 using Erp.Api.Security;
 
 namespace Erp.Api.MasterData;
@@ -191,6 +192,7 @@ internal static class MasterDataEndpoints
         string permission,
         Func<IMasterDataService, Guid, MasterDataQuery, CancellationToken, Task<PageResponse<TResponse>>> list,
         Func<IMasterDataService, Guid, MasterDataActor, Guid?, TRequest, CancellationToken, Task<MasterDataResult<TResponse>>> save)
+        where TRequest : class
     {
         var group = api.MapGroup($"/{route}");
         group.MapGet("", async (
@@ -218,9 +220,17 @@ internal static class MasterDataEndpoints
         group.MapPost("", async (
             HttpContext context,
             IMasterDataService service,
-            TRequest request,
             CancellationToken cancellationToken) =>
         {
+            var request = await ReadRequestAsync<TRequest>(context, cancellationToken);
+            if (request is null)
+            {
+                return Results.ValidationProblem(new Dictionary<string, string[]>
+                {
+                    ["request"] = ["Provide a valid JSON request body."],
+                });
+            }
+
             var result = await save(
                 service, GetCompanyId(context.User), GetActor(context), null, request, cancellationToken);
             return ToResult(result, result.ResourceId is { } entityId
@@ -230,6 +240,7 @@ internal static class MasterDataEndpoints
             .RequireAuthorization(PermissionPolicies.For($"{permission}.create"))
             .WithName($"Create{ToPascalCase(route)}")
             .WithSummary($"Create a {route} record")
+            .Accepts<TRequest>("application/json")
             .Produces<TResponse>(StatusCodes.Status201Created)
             .ProducesValidationProblem()
             .Produces(StatusCodes.Status409Conflict);
@@ -238,9 +249,17 @@ internal static class MasterDataEndpoints
             HttpContext context,
             Guid id,
             IMasterDataService service,
-            TRequest request,
             CancellationToken cancellationToken) =>
         {
+            var request = await ReadRequestAsync<TRequest>(context, cancellationToken);
+            if (request is null)
+            {
+                return Results.ValidationProblem(new Dictionary<string, string[]>
+                {
+                    ["request"] = ["Provide a valid JSON request body."],
+                });
+            }
+
             var result = await save(
                 service, GetCompanyId(context.User), GetActor(context), id, request, cancellationToken);
             return ToResult(result, null);
@@ -248,6 +267,7 @@ internal static class MasterDataEndpoints
             .RequireAuthorization(PermissionPolicies.For($"{permission}.update"))
             .WithName($"Update{ToPascalCase(route)}")
             .WithSummary($"Update a {route} record")
+            .Accepts<TRequest>("application/json")
             .Produces<TResponse>()
             .ProducesValidationProblem()
             .Produces(StatusCodes.Status404NotFound)
@@ -292,6 +312,21 @@ internal static class MasterDataEndpoints
                 .Produces(StatusCodes.Status200OK)
                 .Produces(StatusCodes.Status404NotFound)
                 .Produces(StatusCodes.Status409Conflict);
+        }
+    }
+
+    private static async Task<TRequest?> ReadRequestAsync<TRequest>(
+        HttpContext context,
+        CancellationToken cancellationToken)
+        where TRequest : class
+    {
+        try
+        {
+            return await context.Request.ReadFromJsonAsync<TRequest>(cancellationToken);
+        }
+        catch (JsonException)
+        {
+            return null;
         }
     }
 

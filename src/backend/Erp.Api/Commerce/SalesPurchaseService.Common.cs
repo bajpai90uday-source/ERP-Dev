@@ -2,6 +2,8 @@ using System.Security.Cryptography;
 using System.Text.Json;
 using Erp.Api.MasterData;
 using Erp.Domain.Commerce;
+using Erp.Domain.MasterData;
+using Erp.Domain.Products;
 using Erp.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
@@ -10,7 +12,7 @@ namespace Erp.Api.Commerce;
 
 internal sealed partial class SalesPurchaseService(
     ErpDbContext db,
-    ILogger<SalesPurchaseService> logger) : ISalesPurchaseService
+    ILogger<SalesPurchaseService> logger) : ISalesPurchaseService, IManufacturingService
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
@@ -229,8 +231,122 @@ internal sealed partial class SalesPurchaseService(
     private static bool IsCurrencyCode(string value) =>
         value.Length == 3 && value.All(character => character is >= 'A' and <= 'Z');
 
+    private async Task<decimal?> GetStockConversionFactorAsync(
+        Guid companyId,
+        Item item,
+        Guid fromUnitId,
+        DateOnly effectiveDate,
+        CancellationToken cancellationToken)
+    {
+        if (fromUnitId == item.StockUnitId)
+        {
+            return 1m;
+        }
+
+        if (fromUnitId == item.PurchaseUnitId)
+        {
+            return item.PurchaseToStockFactor;
+        }
+
+        var conversions = await db.UomConversions.AsNoTracking()
+            .Where(value => value.CompanyId == companyId
+                && value.EffectiveFrom <= effectiveDate
+                && (value.EffectiveTo == null || value.EffectiveTo >= effectiveDate))
+            .Select(value => new { value.FromUnitId, value.ToUnitId, value.Factor })
+            .ToListAsync(cancellationToken);
+        var graph = new Dictionary<Guid, List<(Guid UnitId, decimal Factor)>>();
+        foreach (var conversion in conversions)
+        {
+            if (!graph.TryGetValue(conversion.FromUnitId, out var fromEdges))
+            {
+                fromEdges = [];
+                graph.Add(conversion.FromUnitId, fromEdges);
+            }
+
+            if (!graph.TryGetValue(conversion.ToUnitId, out var toEdges))
+            {
+                toEdges = [];
+                graph.Add(conversion.ToUnitId, toEdges);
+            }
+
+            fromEdges.Add((conversion.ToUnitId, conversion.Factor));
+            toEdges.Add((conversion.FromUnitId, 1m / conversion.Factor));
+        }
+
+        var distances = new Dictionary<Guid, int> { [fromUnitId] = 0 };
+        var factors = new Dictionary<Guid, decimal> { [fromUnitId] = 1m };
+        var ambiguous = new HashSet<Guid>();
+        var queue = new Queue<Guid>();
+        queue.Enqueue(fromUnitId);
+        while (queue.TryDequeue(out var current))
+        {
+            if (!graph.TryGetValue(current, out var edges))
+            {
+                continue;
+            }
+
+            foreach (var (unitId, edgeFactor) in edges)
+            {
+                var distance = distances[current] + 1;
+                var factor = factors[current] * edgeFactor;
+                if (!distances.TryGetValue(unitId, out var priorDistance))
+                {
+                    distances.Add(unitId, distance);
+                    factors.Add(unitId, factor);
+                    if (ambiguous.Contains(current))
+                    {
+                        ambiguous.Add(unitId);
+                    }
+
+                    queue.Enqueue(unitId);
+                }
+                else if (priorDistance == distance
+                    && (ambiguous.Contains(current)
+                        || decimal.Round(factors[unitId], 10) != decimal.Round(factor, 10)))
+                {
+                    ambiguous.Add(unitId);
+                }
+            }
+        }
+
+        return distances.TryGetValue(item.StockUnitId, out _)
+            && !ambiguous.Contains(item.StockUnitId)
+            ? factors[item.StockUnitId]
+            : null;
+    }
+
     private static bool IsValidRequestList<T>(IReadOnlyList<T>? values) =>
         values is { Count: > 0 and <= 500 };
+
+    private async Task<InventoryStockBalance> GetOrCreateStockBalanceAsync(
+        Guid companyId,
+        Guid itemId,
+        Guid warehouseId,
+        string stockStatus,
+        CancellationToken cancellationToken)
+    {
+        var balance = await db.InventoryStockBalances.SingleOrDefaultAsync(value =>
+            value.CompanyId == companyId
+            && value.ItemId == itemId
+            && value.WarehouseId == warehouseId
+            && value.StockStatus == stockStatus,
+            cancellationToken);
+        if (balance is not null)
+        {
+            return balance;
+        }
+
+        balance = new InventoryStockBalance
+        {
+            Id = Guid.NewGuid(),
+            CompanyId = companyId,
+            ItemId = itemId,
+            WarehouseId = warehouseId,
+            StockStatus = stockStatus,
+        };
+        db.InventoryStockBalances.Add(balance);
+        return balance;
+    }
 
     private static string NewDocumentNumber(string prefix) =>
         $"{prefix}-{DateTimeOffset.UtcNow:yyyyMMdd}-{Guid.NewGuid():N}"[..(prefix.Length + 18)];

@@ -109,12 +109,17 @@ namespace Erp.Infrastructure.Persistence.Migrations
                         .HasMaxLength(80)
                         .HasColumnType("character varying(80)");
 
+                    b.Property<Guid?>("WarehouseId")
+                        .HasColumnType("uuid");
+
                     b.HasKey("Id");
 
                     b.HasIndex("CompanyId", "PurchaseOrderRevisionId");
 
                     b.HasIndex("CompanyId", "ReceiptNumber")
                         .IsUnique();
+
+                    b.HasIndex("CompanyId", "WarehouseId");
 
                     b.ToTable("GoodsReceipts", (string)null);
                 });
@@ -1001,8 +1006,6 @@ namespace Erp.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasAlternateKey("CompanyId", "Id");
-
                     b.HasIndex("CompanyId", "Code")
                         .IsUnique();
 
@@ -1042,8 +1045,6 @@ namespace Erp.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(160)");
 
                     b.HasKey("Id");
-
-                    b.HasAlternateKey("CompanyId", "Id");
 
                     b.HasIndex("CompanyId", "Code")
                         .IsUnique();
@@ -1666,8 +1667,6 @@ namespace Erp.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasAlternateKey("CompanyId", "Id");
-
                     b.HasIndex("BomVersionId", "LineNumber")
                         .IsUnique();
 
@@ -1735,6 +1734,657 @@ namespace Erp.Infrastructure.Persistence.Migrations
 
                             t.HasCheckConstraint("CK_BomVersions_VersionNumber", " \"VersionNumber\" > 0 ");
                         });
+                });
+
+            modelBuilder.Entity("Erp.Domain.Products.InventoryLedgerEntry", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ActorSubject")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<Guid>("CompanyId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ItemId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("OccurredAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<decimal>("Quantity")
+                        .HasPrecision(20, 6)
+                        .HasColumnType("numeric(20,6)");
+
+                    b.Property<Guid>("ReferenceId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ReferenceLineId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ReferenceType")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<string>("StockStatus")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("TransactionType")
+                        .IsRequired()
+                        .HasMaxLength(24)
+                        .HasColumnType("character varying(24)");
+
+                    b.Property<Guid>("WarehouseId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("CompanyId", "Id");
+
+                    b.HasIndex("CompanyId", "WarehouseId");
+
+                    b.HasIndex("CompanyId", "ItemId", "WarehouseId", "StockStatus");
+
+                    b.HasIndex("CompanyId", "ReferenceType", "ReferenceId", "ReferenceLineId", "TransactionType")
+                        .IsUnique();
+
+                    b.ToTable("InventoryLedgerEntries", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_InventoryLedgerEntries_Quantity", " CAST(\"Quantity\" AS NUMERIC) <> 0 ");
+
+                            t.HasCheckConstraint("CK_InventoryLedgerEntries_StockStatus", " \"StockStatus\" IN ('available', 'hold', 'quarantine') ");
+
+                            t.HasCheckConstraint("CK_InventoryLedgerEntries_TransactionType", " \"TransactionType\" IN ('receipt', 'issue', 'adjustment') ");
+                        });
+                });
+
+            modelBuilder.Entity("Erp.Domain.Products.InventoryReservation", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CompanyId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<decimal>("Quantity")
+                        .HasPrecision(20, 6)
+                        .HasColumnType("numeric(20,6)");
+
+                    b.Property<DateTimeOffset?>("ReleasedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<Guid>("WarehouseId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("WorkOrderMaterialRequirementId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("CompanyId", "Id");
+
+                    b.HasIndex("CompanyId", "WorkOrderMaterialRequirementId");
+
+                    b.HasIndex("CompanyId", "WarehouseId", "Status");
+
+                    b.ToTable("InventoryReservations", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_InventoryReservations_Quantity", " CAST(\"Quantity\" AS NUMERIC) > 0 ");
+
+                            t.HasCheckConstraint("CK_InventoryReservations_Status", " \"Status\" IN ('active', 'released', 'consumed') ");
+                        });
+                });
+
+            modelBuilder.Entity("Erp.Domain.Products.InventoryStockBalance", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CompanyId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("ConcurrencyVersion")
+                        .IsConcurrencyToken()
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("ItemId")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("OnHandQuantity")
+                        .HasPrecision(20, 6)
+                        .HasColumnType("numeric(20,6)");
+
+                    b.Property<decimal>("ReservedQuantity")
+                        .HasPrecision(20, 6)
+                        .HasColumnType("numeric(20,6)");
+
+                    b.Property<string>("StockStatus")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<Guid>("WarehouseId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("CompanyId", "Id");
+
+                    b.HasIndex("CompanyId", "WarehouseId");
+
+                    b.HasIndex("CompanyId", "ItemId", "WarehouseId", "StockStatus")
+                        .IsUnique();
+
+                    b.ToTable("InventoryStockBalances", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_InventoryStockBalances_ConcurrencyVersion", " \"ConcurrencyVersion\" >= 0 ");
+
+                            t.HasCheckConstraint("CK_InventoryStockBalances_OnHand", " CAST(\"OnHandQuantity\" AS NUMERIC) >= 0 ");
+
+                            t.HasCheckConstraint("CK_InventoryStockBalances_Reserved", " CAST(\"ReservedQuantity\" AS NUMERIC) >= 0 AND \"ReservedQuantity\" <= \"OnHandQuantity\" ");
+
+                            t.HasCheckConstraint("CK_InventoryStockBalances_StockStatus", " \"StockStatus\" IN ('available', 'hold', 'quarantine') ");
+                        });
+                });
+
+            modelBuilder.Entity("Erp.Domain.Products.JobCard", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("AssignedTeam")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<Guid>("CompanyId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset?>("CompletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("ConcurrencyVersion")
+                        .IsConcurrencyToken()
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBySubject")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("JobCardNumber")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<Guid?>("MachineId")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("PlannedQuantity")
+                        .HasPrecision(20, 6)
+                        .HasColumnType("numeric(20,6)");
+
+                    b.Property<string>("ProductionLine")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTimeOffset?>("StartedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(24)
+                        .HasColumnType("character varying(24)");
+
+                    b.Property<Guid>("WorkOrderId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("WorkOrderOperationId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CompanyId", "JobCardNumber")
+                        .IsUnique();
+
+                    b.HasIndex("CompanyId", "MachineId");
+
+                    b.HasIndex("CompanyId", "WorkOrderId");
+
+                    b.HasIndex("CompanyId", "WorkOrderOperationId")
+                        .IsUnique();
+
+                    b.ToTable("JobCards", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_JobCards_ConcurrencyVersion", " \"ConcurrencyVersion\" >= 0 ");
+
+                            t.HasCheckConstraint("CK_JobCards_PlannedQuantity", " CAST(\"PlannedQuantity\" AS NUMERIC) > 0 ");
+
+                            t.HasCheckConstraint("CK_JobCards_Status", " \"Status\" IN ('ready', 'in_progress', 'on_hold', 'partially_completed', 'completed', 'cancelled') ");
+                        });
+                });
+
+            modelBuilder.Entity("Erp.Domain.Products.JobWorkMaterialIssue", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CompanyId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("ConcurrencyVersion")
+                        .IsConcurrencyToken()
+                        .HasColumnType("integer");
+
+                    b.Property<decimal>("IssuedQuantity")
+                        .HasPrecision(20, 6)
+                        .HasColumnType("numeric(20,6)");
+
+                    b.Property<Guid>("ItemId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("JobWorkOrderId")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("ReturnedQuantity")
+                        .HasPrecision(20, 6)
+                        .HasColumnType("numeric(20,6)");
+
+                    b.Property<Guid>("WarehouseId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("CompanyId", "Id");
+
+                    b.HasIndex("CompanyId", "ItemId");
+
+                    b.HasIndex("CompanyId", "JobWorkOrderId");
+
+                    b.HasIndex("CompanyId", "WarehouseId");
+
+                    b.ToTable("JobWorkMaterialIssues", (string)null);
+                });
+
+            modelBuilder.Entity("Erp.Domain.Products.JobWorkOrder", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CompanyId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("ConcurrencyVersion")
+                        .IsConcurrencyToken()
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBySubject")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("CurrencyCode")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .HasColumnType("character varying(3)");
+
+                    b.Property<DateOnly>("ExpectedReturnDate")
+                        .HasColumnType("date");
+
+                    b.Property<string>("OrderNumber")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<Guid>("OutputItemId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("OutputWarehouseId")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("PlannedQuantity")
+                        .HasPrecision(20, 6)
+                        .HasColumnType("numeric(20,6)");
+
+                    b.Property<decimal>("ProcessedQuantity")
+                        .HasPrecision(20, 6)
+                        .HasColumnType("numeric(20,6)");
+
+                    b.Property<decimal>("RejectedQuantity")
+                        .HasPrecision(20, 6)
+                        .HasColumnType("numeric(20,6)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(24)
+                        .HasColumnType("character varying(24)");
+
+                    b.Property<Guid>("SubcontractorId")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("UnitCharge")
+                        .HasPrecision(20, 6)
+                        .HasColumnType("numeric(20,6)");
+
+                    b.Property<Guid?>("WorkOrderOperationId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CompanyId", "OrderNumber")
+                        .IsUnique();
+
+                    b.HasIndex("CompanyId", "OutputItemId");
+
+                    b.HasIndex("CompanyId", "OutputWarehouseId");
+
+                    b.HasIndex("CompanyId", "SubcontractorId");
+
+                    b.ToTable("JobWorkOrders", (string)null);
+                });
+
+            modelBuilder.Entity("Erp.Domain.Products.JobWorkReceipt", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("ChargeAmount")
+                        .HasPrecision(20, 6)
+                        .HasColumnType("numeric(20,6)");
+
+                    b.Property<Guid>("CompanyId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("CreatedBySubject")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<Guid>("JobWorkOrderId")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("ProcessedQuantity")
+                        .HasPrecision(20, 6)
+                        .HasColumnType("numeric(20,6)");
+
+                    b.Property<DateTimeOffset>("ReceivedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Reference")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
+
+                    b.Property<decimal>("RejectedQuantity")
+                        .HasPrecision(20, 6)
+                        .HasColumnType("numeric(20,6)");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("CompanyId", "Id");
+
+                    b.HasIndex("CompanyId", "JobWorkOrderId", "Reference")
+                        .IsUnique();
+
+                    b.ToTable("JobWorkReceipts", (string)null);
+                });
+
+            modelBuilder.Entity("Erp.Domain.Products.MachineDowntime", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CompanyId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("ConcurrencyVersion")
+                        .IsConcurrencyToken()
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset?>("EndedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("MachineId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("MaintenanceJobCardId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("RecordedBySubject")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<DateTimeOffset>("StartedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("WorkOrderId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("CompanyId", "Id");
+
+                    b.HasIndex("CompanyId", "MachineId")
+                        .IsUnique()
+                        .HasFilter("\"EndedAt\" IS NULL");
+
+                    b.HasIndex("CompanyId", "MachineId", "StartedAt");
+
+                    b.ToTable("MachineDowntimes", (string)null);
+                });
+
+            modelBuilder.Entity("Erp.Domain.Products.MaintenanceJobCard", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("AssignedTeam")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("character varying(160)");
+
+                    b.Property<string>("CardNumber")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<Guid>("CompanyId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset?>("CompletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CompletedBySubject")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<int>("ConcurrencyVersion")
+                        .IsConcurrencyToken()
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("MaintenanceRequestId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CompanyId", "CardNumber")
+                        .IsUnique();
+
+                    b.HasIndex("CompanyId", "MaintenanceRequestId")
+                        .IsUnique();
+
+                    b.ToTable("MaintenanceJobCards", (string)null);
+                });
+
+            modelBuilder.Entity("Erp.Domain.Products.MaintenanceRequest", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CompanyId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBySubject")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<Guid>("MachineId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Priority")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<string>("RequestNumber")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CompanyId", "MachineId");
+
+                    b.HasIndex("CompanyId", "RequestNumber")
+                        .IsUnique();
+
+                    b.ToTable("MaintenanceRequests", (string)null);
+                });
+
+            modelBuilder.Entity("Erp.Domain.Products.MaintenanceSpareTransaction", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ActorSubject")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<Guid>("CompanyId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ItemId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("MaintenanceJobCardId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("OccurredAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<decimal>("Quantity")
+                        .HasPrecision(20, 6)
+                        .HasColumnType("numeric(20,6)");
+
+                    b.Property<Guid>("WarehouseId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("CompanyId", "Id");
+
+                    b.HasIndex("CompanyId", "ItemId");
+
+                    b.HasIndex("CompanyId", "MaintenanceJobCardId");
+
+                    b.HasIndex("CompanyId", "WarehouseId");
+
+                    b.ToTable("MaintenanceSpareTransactions", (string)null);
+                });
+
+            modelBuilder.Entity("Erp.Domain.Products.PreventiveMaintenanceSchedule", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CompanyId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("IntervalDays")
+                        .HasColumnType("integer");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<Guid>("MachineId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("character varying(160)");
+
+                    b.Property<DateOnly>("NextDueDate")
+                        .HasColumnType("date");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("CompanyId", "Id");
+
+                    b.HasIndex("CompanyId", "MachineId", "Name")
+                        .IsUnique();
+
+                    b.ToTable("PreventiveMaintenanceSchedules", (string)null);
                 });
 
             modelBuilder.Entity("Erp.Domain.Products.Product", b =>
@@ -1882,6 +2532,653 @@ namespace Erp.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Erp.Domain.Products.ProductionConfirmation", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset?>("ApprovedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ApprovedBySubject")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<Guid>("CompanyId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CompletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CorrectionReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<Guid?>("CorrectsConfirmationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBySubject")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<decimal>("GoodQuantity")
+                        .HasPrecision(20, 6)
+                        .HasColumnType("numeric(20,6)");
+
+                    b.Property<Guid>("JobCardId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("MachineId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ProductionLine")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<decimal>("RejectedQuantity")
+                        .HasPrecision(20, 6)
+                        .HasColumnType("numeric(20,6)");
+
+                    b.Property<string>("RejectionReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<decimal>("ReworkQuantity")
+                        .HasPrecision(20, 6)
+                        .HasColumnType("numeric(20,6)");
+
+                    b.Property<decimal>("ScrapQuantity")
+                        .HasPrecision(20, 6)
+                        .HasColumnType("numeric(20,6)");
+
+                    b.Property<string>("Shift")
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
+
+                    b.Property<DateTimeOffset>("StartedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(24)
+                        .HasColumnType("character varying(24)");
+
+                    b.Property<string>("Team")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<Guid>("WorkOrderId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CompanyId", "CorrectsConfirmationId")
+                        .IsUnique();
+
+                    b.HasIndex("CompanyId", "MachineId");
+
+                    b.HasIndex("CompanyId", "WorkOrderId");
+
+                    b.HasIndex("CompanyId", "JobCardId", "CreatedAt");
+
+                    b.ToTable("ProductionConfirmations", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_ProductionConfirmations_Quantities", " CAST(\"GoodQuantity\" AS NUMERIC) >= 0 AND CAST(\"RejectedQuantity\" AS NUMERIC) >= 0 AND CAST(\"ReworkQuantity\" AS NUMERIC) >= 0 AND CAST(\"ScrapQuantity\" AS NUMERIC) >= 0 AND (\"GoodQuantity\" + \"RejectedQuantity\" + \"ReworkQuantity\" + \"ScrapQuantity\") > 0 ");
+
+                            t.HasCheckConstraint("CK_ProductionConfirmations_Status", " \"Status\" IN ('pending_approval', 'approved', 'rejected', 'superseded') ");
+
+                            t.HasCheckConstraint("CK_ProductionConfirmations_Timestamps", " \"CompletedAt\" >= \"StartedAt\" ");
+                        });
+                });
+
+            modelBuilder.Entity("Erp.Domain.Products.QualityDefectCode", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<Guid>("CompanyId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(240)
+                        .HasColumnType("character varying(240)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CompanyId", "Code")
+                        .IsUnique();
+
+                    b.ToTable("QualityDefectCodes", (string)null);
+                });
+
+            modelBuilder.Entity("Erp.Domain.Products.QualityInspection", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("AcceptedQuantity")
+                        .HasPrecision(20, 6)
+                        .HasColumnType("numeric(20,6)");
+
+                    b.Property<DateTimeOffset?>("ApprovedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ApprovedBySubject")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<Guid>("CompanyId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("ConcurrencyVersion")
+                        .IsConcurrencyToken()
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBySubject")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<decimal>("HoldQuantity")
+                        .HasPrecision(20, 6)
+                        .HasColumnType("numeric(20,6)");
+
+                    b.Property<decimal>("InspectedQuantity")
+                        .HasPrecision(20, 6)
+                        .HasColumnType("numeric(20,6)");
+
+                    b.Property<string>("InspectionNumber")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<Guid>("ItemId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("JobCardId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Reason")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<decimal>("RejectedQuantity")
+                        .HasPrecision(20, 6)
+                        .HasColumnType("numeric(20,6)");
+
+                    b.Property<decimal>("ReworkQuantity")
+                        .HasPrecision(20, 6)
+                        .HasColumnType("numeric(20,6)");
+
+                    b.Property<Guid>("SourceId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("SourceLineId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("SourceType")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<string>("Stage")
+                        .IsRequired()
+                        .HasMaxLength(24)
+                        .HasColumnType("character varying(24)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(24)
+                        .HasColumnType("character varying(24)");
+
+                    b.Property<Guid>("WarehouseId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CompanyId", "InspectionNumber")
+                        .IsUnique();
+
+                    b.HasIndex("CompanyId", "ItemId");
+
+                    b.HasIndex("CompanyId", "WarehouseId");
+
+                    b.HasIndex("CompanyId", "SourceType", "SourceLineId", "Stage")
+                        .IsUnique();
+
+                    b.ToTable("QualityInspections", (string)null);
+                });
+
+            modelBuilder.Entity("Erp.Domain.Products.QualityInspectionDefect", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CompanyId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("DefectCodeId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("InspectionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<decimal>("Quantity")
+                        .HasPrecision(20, 6)
+                        .HasColumnType("numeric(20,6)");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("CompanyId", "Id");
+
+                    b.HasIndex("CompanyId", "DefectCodeId");
+
+                    b.HasIndex("CompanyId", "InspectionId");
+
+                    b.ToTable("QualityInspectionDefects", (string)null);
+                });
+
+            modelBuilder.Entity("Erp.Domain.Products.SubcontractorCustodyTransaction", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ActorSubject")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<Guid>("CompanyId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ItemId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("JobWorkMaterialIssueId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("JobWorkOrderId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("OccurredAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<decimal>("Quantity")
+                        .HasPrecision(20, 6)
+                        .HasColumnType("numeric(20,6)");
+
+                    b.Property<string>("TransactionType")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("CompanyId", "Id");
+
+                    b.HasIndex("CompanyId", "JobWorkOrderId", "ItemId");
+
+                    b.ToTable("SubcontractorCustodyTransactions", (string)null);
+                });
+
+            modelBuilder.Entity("Erp.Domain.Products.SubcontractorProfile", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CompanyId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("RegistrationCode")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
+
+                    b.Property<Guid>("SupplierId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CompanyId", "SupplierId")
+                        .IsUnique();
+
+                    b.ToTable("SubcontractorProfiles", (string)null);
+                });
+
+            modelBuilder.Entity("Erp.Domain.Products.WorkOrder", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset?>("ApprovedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ApprovedBySubject")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<Guid>("BomVersionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("BomVersionNumber")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset?>("CancelledAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("CompanyId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset?>("CompletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("ConcurrencyVersion")
+                        .IsConcurrencyToken()
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBySubject")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<Guid>("OutputWarehouseId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateOnly>("PlannedEndDate")
+                        .HasColumnType("date");
+
+                    b.Property<decimal>("PlannedQuantity")
+                        .HasPrecision(20, 6)
+                        .HasColumnType("numeric(20,6)");
+
+                    b.Property<DateOnly>("PlannedStartDate")
+                        .HasColumnType("date");
+
+                    b.Property<int>("Priority")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(3);
+
+                    b.Property<string>("RejectionReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<DateTimeOffset?>("ReleasedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("SalesOrderLineId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("SalesOrderRevisionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<DateTimeOffset?>("SubmittedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("SubmittedBySubject")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("WorkOrderNumber")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CompanyId", "BomVersionId");
+
+                    b.HasIndex("CompanyId", "OutputWarehouseId");
+
+                    b.HasIndex("CompanyId", "SalesOrderRevisionId");
+
+                    b.HasIndex("CompanyId", "WorkOrderNumber")
+                        .IsUnique();
+
+                    b.HasIndex("CompanyId", "SalesOrderLineId", "Status");
+
+                    b.ToTable("WorkOrders", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_WorkOrders_ConcurrencyVersion", " \"ConcurrencyVersion\" >= 0 ");
+
+                            t.HasCheckConstraint("CK_WorkOrders_PlannedDates", " \"PlannedEndDate\" >= \"PlannedStartDate\" ");
+
+                            t.HasCheckConstraint("CK_WorkOrders_PlannedQuantity", " CAST(\"PlannedQuantity\" AS NUMERIC) > 0 ");
+
+                            t.HasCheckConstraint("CK_WorkOrders_Priority", " \"Priority\" BETWEEN 1 AND 5 ");
+
+                            t.HasCheckConstraint("CK_WorkOrders_Status", " \"Status\" IN ('draft', 'submitted', 'approved', 'rejected', 'released', 'on_hold', 'completed', 'cancelled') ");
+                        });
+                });
+
+            modelBuilder.Entity("Erp.Domain.Products.WorkOrderMaterialRequirement", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("BomComponentId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("BomVersionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CompanyId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ItemId")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("QuantityPerFinishedUnit")
+                        .HasPrecision(20, 10)
+                        .HasColumnType("numeric(20,10)");
+
+                    b.Property<decimal>("RequiredQuantity")
+                        .HasPrecision(20, 6)
+                        .HasColumnType("numeric(20,6)");
+
+                    b.Property<string>("SourcePath")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<Guid>("UnitOfMeasureId")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("WastePercent")
+                        .HasPrecision(9, 6)
+                        .HasColumnType("numeric(9,6)");
+
+                    b.Property<Guid>("WorkOrderId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CompanyId", "BomComponentId");
+
+                    b.HasIndex("CompanyId", "BomVersionId");
+
+                    b.HasIndex("CompanyId", "ItemId");
+
+                    b.HasIndex("CompanyId", "UnitOfMeasureId");
+
+                    b.HasIndex("CompanyId", "WorkOrderId", "ItemId");
+
+                    b.ToTable("WorkOrderMaterialRequirements", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_WorkOrderMaterialRequirements_QuantityPerUnit", " CAST(\"QuantityPerFinishedUnit\" AS NUMERIC) > 0 ");
+
+                            t.HasCheckConstraint("CK_WorkOrderMaterialRequirements_RequiredQuantity", " CAST(\"RequiredQuantity\" AS NUMERIC) > 0 ");
+
+                            t.HasCheckConstraint("CK_WorkOrderMaterialRequirements_Waste", " CAST(\"WastePercent\" AS NUMERIC) >= 0 AND CAST(\"WastePercent\" AS NUMERIC) <= 100 ");
+                        });
+                });
+
+            modelBuilder.Entity("Erp.Domain.Products.WorkOrderOperation", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("AssignedTeam")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<Guid>("CompanyId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset?>("CompletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CompletedBySubject")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<Guid?>("MachineId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("OperationCodeSnapshot")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<string>("OperationNameSnapshot")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("character varying(160)");
+
+                    b.Property<DateOnly>("PlannedEndDate")
+                        .HasColumnType("date");
+
+                    b.Property<DateOnly>("PlannedStartDate")
+                        .HasColumnType("date");
+
+                    b.Property<decimal>("PlannedTargetQuantity")
+                        .HasPrecision(20, 6)
+                        .HasColumnType("numeric(20,6)");
+
+                    b.Property<string>("ProductionLine")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<Guid>("ProductionOperationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Sequence")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<Guid>("WorkOrderId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CompanyId", "MachineId");
+
+                    b.HasIndex("CompanyId", "ProductionOperationId");
+
+                    b.HasIndex("CompanyId", "WorkOrderId", "Sequence")
+                        .IsUnique();
+
+                    b.ToTable("WorkOrderOperations", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_WorkOrderOperations_PlannedDates", " \"PlannedEndDate\" >= \"PlannedStartDate\" ");
+
+                            t.HasCheckConstraint("CK_WorkOrderOperations_PlannedTargetQuantity", " CAST(\"PlannedTargetQuantity\" AS NUMERIC) > 0 ");
+
+                            t.HasCheckConstraint("CK_WorkOrderOperations_Sequence", " \"Sequence\" > 0 ");
+
+                            t.HasCheckConstraint("CK_WorkOrderOperations_Status", " \"Status\" IN ('pending', 'completed') ");
+                        });
+                });
+
+            modelBuilder.Entity("Erp.Domain.Products.WorkOrderTransactionEvent", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
+
+                    b.Property<string>("ActorSubject")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<Guid>("CompanyId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("DetailsJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb");
+
+                    b.Property<DateTimeOffset>("OccurredAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Reason")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<Guid>("WorkOrderId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("CompanyId", "Id");
+
+                    b.HasIndex("CompanyId", "WorkOrderId", "OccurredAt");
+
+                    b.ToTable("WorkOrderTransactionEvents", (string)null);
+                });
+
             modelBuilder.Entity("Erp.Domain.Commerce.BusinessTransactionEvent", b =>
                 {
                     b.HasOne("Erp.Domain.Platform.UserAccount", null)
@@ -1910,6 +3207,12 @@ namespace Erp.Infrastructure.Persistence.Migrations
                         .HasPrincipalKey("CompanyId", "Id")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.HasOne("Erp.Domain.MasterData.Warehouse", null)
+                        .WithMany()
+                        .HasForeignKey("CompanyId", "WarehouseId")
+                        .HasPrincipalKey("CompanyId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
                 });
 
             modelBuilder.Entity("Erp.Domain.Commerce.GoodsReceiptLine", b =>
@@ -2480,6 +3783,274 @@ namespace Erp.Infrastructure.Persistence.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("Erp.Domain.Products.InventoryLedgerEntry", b =>
+                {
+                    b.HasOne("Erp.Domain.Platform.Company", null)
+                        .WithMany()
+                        .HasForeignKey("CompanyId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Erp.Domain.MasterData.Item", null)
+                        .WithMany()
+                        .HasForeignKey("CompanyId", "ItemId")
+                        .HasPrincipalKey("CompanyId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Erp.Domain.MasterData.Warehouse", null)
+                        .WithMany()
+                        .HasForeignKey("CompanyId", "WarehouseId")
+                        .HasPrincipalKey("CompanyId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Erp.Domain.Products.InventoryReservation", b =>
+                {
+                    b.HasOne("Erp.Domain.Platform.Company", null)
+                        .WithMany()
+                        .HasForeignKey("CompanyId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Erp.Domain.MasterData.Warehouse", null)
+                        .WithMany()
+                        .HasForeignKey("CompanyId", "WarehouseId")
+                        .HasPrincipalKey("CompanyId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Erp.Domain.Products.WorkOrderMaterialRequirement", null)
+                        .WithMany()
+                        .HasForeignKey("CompanyId", "WorkOrderMaterialRequirementId")
+                        .HasPrincipalKey("CompanyId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Erp.Domain.Products.InventoryStockBalance", b =>
+                {
+                    b.HasOne("Erp.Domain.Platform.Company", null)
+                        .WithMany()
+                        .HasForeignKey("CompanyId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Erp.Domain.MasterData.Item", null)
+                        .WithMany()
+                        .HasForeignKey("CompanyId", "ItemId")
+                        .HasPrincipalKey("CompanyId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Erp.Domain.MasterData.Warehouse", null)
+                        .WithMany()
+                        .HasForeignKey("CompanyId", "WarehouseId")
+                        .HasPrincipalKey("CompanyId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Erp.Domain.Products.JobCard", b =>
+                {
+                    b.HasOne("Erp.Domain.Platform.Company", null)
+                        .WithMany()
+                        .HasForeignKey("CompanyId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Erp.Domain.MasterData.Machine", null)
+                        .WithMany()
+                        .HasForeignKey("CompanyId", "MachineId")
+                        .HasPrincipalKey("CompanyId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Erp.Domain.Products.WorkOrder", null)
+                        .WithMany()
+                        .HasForeignKey("CompanyId", "WorkOrderId")
+                        .HasPrincipalKey("CompanyId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Erp.Domain.Products.WorkOrderOperation", null)
+                        .WithMany()
+                        .HasForeignKey("CompanyId", "WorkOrderOperationId")
+                        .HasPrincipalKey("CompanyId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Erp.Domain.Products.JobWorkMaterialIssue", b =>
+                {
+                    b.HasOne("Erp.Domain.Platform.Company", null)
+                        .WithMany()
+                        .HasForeignKey("CompanyId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Erp.Domain.MasterData.Item", null)
+                        .WithMany()
+                        .HasForeignKey("CompanyId", "ItemId")
+                        .HasPrincipalKey("CompanyId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Erp.Domain.Products.JobWorkOrder", null)
+                        .WithMany()
+                        .HasForeignKey("CompanyId", "JobWorkOrderId")
+                        .HasPrincipalKey("CompanyId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Erp.Domain.MasterData.Warehouse", null)
+                        .WithMany()
+                        .HasForeignKey("CompanyId", "WarehouseId")
+                        .HasPrincipalKey("CompanyId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Erp.Domain.Products.JobWorkOrder", b =>
+                {
+                    b.HasOne("Erp.Domain.Platform.Company", null)
+                        .WithMany()
+                        .HasForeignKey("CompanyId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Erp.Domain.MasterData.Item", null)
+                        .WithMany()
+                        .HasForeignKey("CompanyId", "OutputItemId")
+                        .HasPrincipalKey("CompanyId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Erp.Domain.MasterData.Warehouse", null)
+                        .WithMany()
+                        .HasForeignKey("CompanyId", "OutputWarehouseId")
+                        .HasPrincipalKey("CompanyId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Erp.Domain.Products.SubcontractorProfile", null)
+                        .WithMany()
+                        .HasForeignKey("CompanyId", "SubcontractorId")
+                        .HasPrincipalKey("CompanyId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Erp.Domain.Products.JobWorkReceipt", b =>
+                {
+                    b.HasOne("Erp.Domain.Platform.Company", null)
+                        .WithMany()
+                        .HasForeignKey("CompanyId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Erp.Domain.Products.JobWorkOrder", null)
+                        .WithMany()
+                        .HasForeignKey("CompanyId", "JobWorkOrderId")
+                        .HasPrincipalKey("CompanyId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Erp.Domain.Products.MachineDowntime", b =>
+                {
+                    b.HasOne("Erp.Domain.Platform.Company", null)
+                        .WithMany()
+                        .HasForeignKey("CompanyId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Erp.Domain.MasterData.Machine", null)
+                        .WithMany()
+                        .HasForeignKey("CompanyId", "MachineId")
+                        .HasPrincipalKey("CompanyId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Erp.Domain.Products.MaintenanceJobCard", b =>
+                {
+                    b.HasOne("Erp.Domain.Platform.Company", null)
+                        .WithMany()
+                        .HasForeignKey("CompanyId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Erp.Domain.Products.MaintenanceRequest", null)
+                        .WithMany()
+                        .HasForeignKey("CompanyId", "MaintenanceRequestId")
+                        .HasPrincipalKey("CompanyId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Erp.Domain.Products.MaintenanceRequest", b =>
+                {
+                    b.HasOne("Erp.Domain.Platform.Company", null)
+                        .WithMany()
+                        .HasForeignKey("CompanyId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Erp.Domain.MasterData.Machine", null)
+                        .WithMany()
+                        .HasForeignKey("CompanyId", "MachineId")
+                        .HasPrincipalKey("CompanyId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Erp.Domain.Products.MaintenanceSpareTransaction", b =>
+                {
+                    b.HasOne("Erp.Domain.Platform.Company", null)
+                        .WithMany()
+                        .HasForeignKey("CompanyId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Erp.Domain.MasterData.Item", null)
+                        .WithMany()
+                        .HasForeignKey("CompanyId", "ItemId")
+                        .HasPrincipalKey("CompanyId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Erp.Domain.Products.MaintenanceJobCard", null)
+                        .WithMany()
+                        .HasForeignKey("CompanyId", "MaintenanceJobCardId")
+                        .HasPrincipalKey("CompanyId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Erp.Domain.MasterData.Warehouse", null)
+                        .WithMany()
+                        .HasForeignKey("CompanyId", "WarehouseId")
+                        .HasPrincipalKey("CompanyId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Erp.Domain.Products.PreventiveMaintenanceSchedule", b =>
+                {
+                    b.HasOne("Erp.Domain.Platform.Company", null)
+                        .WithMany()
+                        .HasForeignKey("CompanyId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Erp.Domain.MasterData.Machine", null)
+                        .WithMany()
+                        .HasForeignKey("CompanyId", "MachineId")
+                        .HasPrincipalKey("CompanyId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("Erp.Domain.Products.Product", b =>
                 {
                     b.HasOne("Erp.Domain.Platform.Company", null)
@@ -2525,6 +4096,254 @@ namespace Erp.Infrastructure.Persistence.Migrations
                     b.HasOne("Erp.Domain.Products.ProductVariant", null)
                         .WithMany("Attributes")
                         .HasForeignKey("CompanyId", "ProductVariantId")
+                        .HasPrincipalKey("CompanyId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Erp.Domain.Products.ProductionConfirmation", b =>
+                {
+                    b.HasOne("Erp.Domain.Platform.Company", null)
+                        .WithMany()
+                        .HasForeignKey("CompanyId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Erp.Domain.Products.ProductionConfirmation", null)
+                        .WithMany()
+                        .HasForeignKey("CompanyId", "CorrectsConfirmationId")
+                        .HasPrincipalKey("CompanyId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Erp.Domain.Products.JobCard", null)
+                        .WithMany()
+                        .HasForeignKey("CompanyId", "JobCardId")
+                        .HasPrincipalKey("CompanyId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Erp.Domain.MasterData.Machine", null)
+                        .WithMany()
+                        .HasForeignKey("CompanyId", "MachineId")
+                        .HasPrincipalKey("CompanyId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Erp.Domain.Products.WorkOrder", null)
+                        .WithMany()
+                        .HasForeignKey("CompanyId", "WorkOrderId")
+                        .HasPrincipalKey("CompanyId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Erp.Domain.Products.QualityDefectCode", b =>
+                {
+                    b.HasOne("Erp.Domain.Platform.Company", null)
+                        .WithMany()
+                        .HasForeignKey("CompanyId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Erp.Domain.Products.QualityInspection", b =>
+                {
+                    b.HasOne("Erp.Domain.Platform.Company", null)
+                        .WithMany()
+                        .HasForeignKey("CompanyId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Erp.Domain.MasterData.Item", null)
+                        .WithMany()
+                        .HasForeignKey("CompanyId", "ItemId")
+                        .HasPrincipalKey("CompanyId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Erp.Domain.MasterData.Warehouse", null)
+                        .WithMany()
+                        .HasForeignKey("CompanyId", "WarehouseId")
+                        .HasPrincipalKey("CompanyId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Erp.Domain.Products.QualityInspectionDefect", b =>
+                {
+                    b.HasOne("Erp.Domain.Platform.Company", null)
+                        .WithMany()
+                        .HasForeignKey("CompanyId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Erp.Domain.Products.QualityDefectCode", null)
+                        .WithMany()
+                        .HasForeignKey("CompanyId", "DefectCodeId")
+                        .HasPrincipalKey("CompanyId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Erp.Domain.Products.QualityInspection", null)
+                        .WithMany()
+                        .HasForeignKey("CompanyId", "InspectionId")
+                        .HasPrincipalKey("CompanyId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Erp.Domain.Products.SubcontractorCustodyTransaction", b =>
+                {
+                    b.HasOne("Erp.Domain.Platform.Company", null)
+                        .WithMany()
+                        .HasForeignKey("CompanyId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Erp.Domain.Products.JobWorkOrder", null)
+                        .WithMany()
+                        .HasForeignKey("CompanyId", "JobWorkOrderId")
+                        .HasPrincipalKey("CompanyId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Erp.Domain.Products.SubcontractorProfile", b =>
+                {
+                    b.HasOne("Erp.Domain.Platform.Company", null)
+                        .WithMany()
+                        .HasForeignKey("CompanyId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Erp.Domain.MasterData.Supplier", null)
+                        .WithMany()
+                        .HasForeignKey("CompanyId", "SupplierId")
+                        .HasPrincipalKey("CompanyId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Erp.Domain.Products.WorkOrder", b =>
+                {
+                    b.HasOne("Erp.Domain.Platform.Company", null)
+                        .WithMany()
+                        .HasForeignKey("CompanyId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Erp.Domain.Products.BomVersion", null)
+                        .WithMany()
+                        .HasForeignKey("CompanyId", "BomVersionId")
+                        .HasPrincipalKey("CompanyId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Erp.Domain.MasterData.Warehouse", null)
+                        .WithMany()
+                        .HasForeignKey("CompanyId", "OutputWarehouseId")
+                        .HasPrincipalKey("CompanyId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Erp.Domain.Commerce.SalesOrderLine", null)
+                        .WithMany()
+                        .HasForeignKey("CompanyId", "SalesOrderLineId")
+                        .HasPrincipalKey("CompanyId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Erp.Domain.Commerce.SalesOrderRevision", null)
+                        .WithMany()
+                        .HasForeignKey("CompanyId", "SalesOrderRevisionId")
+                        .HasPrincipalKey("CompanyId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Erp.Domain.Products.WorkOrderMaterialRequirement", b =>
+                {
+                    b.HasOne("Erp.Domain.Platform.Company", null)
+                        .WithMany()
+                        .HasForeignKey("CompanyId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Erp.Domain.Products.BomComponent", null)
+                        .WithMany()
+                        .HasForeignKey("CompanyId", "BomComponentId")
+                        .HasPrincipalKey("CompanyId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Erp.Domain.Products.BomVersion", null)
+                        .WithMany()
+                        .HasForeignKey("CompanyId", "BomVersionId")
+                        .HasPrincipalKey("CompanyId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Erp.Domain.MasterData.Item", null)
+                        .WithMany()
+                        .HasForeignKey("CompanyId", "ItemId")
+                        .HasPrincipalKey("CompanyId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Erp.Domain.MasterData.UnitOfMeasure", null)
+                        .WithMany()
+                        .HasForeignKey("CompanyId", "UnitOfMeasureId")
+                        .HasPrincipalKey("CompanyId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Erp.Domain.Products.WorkOrder", null)
+                        .WithMany("Materials")
+                        .HasForeignKey("CompanyId", "WorkOrderId")
+                        .HasPrincipalKey("CompanyId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Erp.Domain.Products.WorkOrderOperation", b =>
+                {
+                    b.HasOne("Erp.Domain.Platform.Company", null)
+                        .WithMany()
+                        .HasForeignKey("CompanyId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Erp.Domain.MasterData.Machine", null)
+                        .WithMany()
+                        .HasForeignKey("CompanyId", "MachineId")
+                        .HasPrincipalKey("CompanyId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Erp.Domain.MasterData.ProductionOperation", null)
+                        .WithMany()
+                        .HasForeignKey("CompanyId", "ProductionOperationId")
+                        .HasPrincipalKey("CompanyId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Erp.Domain.Products.WorkOrder", null)
+                        .WithMany("Operations")
+                        .HasForeignKey("CompanyId", "WorkOrderId")
+                        .HasPrincipalKey("CompanyId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Erp.Domain.Products.WorkOrderTransactionEvent", b =>
+                {
+                    b.HasOne("Erp.Domain.Platform.Company", null)
+                        .WithMany()
+                        .HasForeignKey("CompanyId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Erp.Domain.Products.WorkOrder", null)
+                        .WithMany()
+                        .HasForeignKey("CompanyId", "WorkOrderId")
                         .HasPrincipalKey("CompanyId", "Id")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
@@ -2578,6 +4397,13 @@ namespace Erp.Infrastructure.Persistence.Migrations
             modelBuilder.Entity("Erp.Domain.Products.ProductVariant", b =>
                 {
                     b.Navigation("Attributes");
+                });
+
+            modelBuilder.Entity("Erp.Domain.Products.WorkOrder", b =>
+                {
+                    b.Navigation("Materials");
+
+                    b.Navigation("Operations");
                 });
 #pragma warning restore 612, 618
         }

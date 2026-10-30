@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import CommerceWorkspace from "./CommerceWorkspace";
+import ManufacturingWorkspace, { type ManufacturingView } from "./ManufacturingWorkspace";
 import {
   api,
   ApiError,
@@ -258,10 +259,23 @@ function ApplicationShell({
     || selected === "purchase-orders"
     ? selected
     : null;
+  const manufacturing = selected === "work-orders" || selected === "mrp" || selected === "inventory"
+    || selected === "production-planning" || selected === "job-cards"
+    || selected === "quality" || selected === "job-work" || selected === "maintenance"
+    ? selected as ManufacturingView
+    : null;
   const currentLabel = current?.label
     ?? (commerce === "sales-orders" ? "Sales orders"
       : commerce === "purchase-requisitions" ? "Purchase requisitions"
-        : commerce === "purchase-orders" ? "Purchase orders" : "Workspace");
+        : commerce === "purchase-orders" ? "Purchase orders"
+          : manufacturing === "work-orders" ? "Work Orders"
+            : manufacturing === "mrp" ? "Material planning"
+            : manufacturing === "inventory" ? "Inventory"
+              : manufacturing === "production-planning" ? "Production planning"
+                : manufacturing === "job-cards" ? "Job Cards"
+                  : manufacturing === "quality" ? "Quality control"
+                    : manufacturing === "job-work" ? "Job Work"
+                      : manufacturing === "maintenance" ? "Maintenance" : "Workspace");
 
   return (
     <div className="app-shell">
@@ -307,6 +321,31 @@ function ApplicationShell({
             </button>
           ))}
         </nav>
+        <p className="nav-caption">MANUFACTURING</p>
+        <nav aria-label="Manufacturing">
+          {([
+            ["work-orders", "Work Orders"],
+            ["production-planning", "Production planning"],
+            ["job-cards", "Job Cards & confirmation"],
+            ["mrp", "Material planning"],
+            ["inventory", "Inventory"],
+            ["quality", "Quality control"],
+            ["job-work", "Job Work"],
+            ["maintenance", "Maintenance"],
+          ] as const).map(([key, label]) => (
+            <button
+              className={`nav-item ${selected === key ? "selected" : ""}`}
+              key={key}
+              onClick={() => {
+                setSelected(key);
+                setError("");
+              }}
+            >
+              <span className="nav-dot" />
+              {label}
+            </button>
+          ))}
+        </nav>
         <div className="sidebar-footer">
           <span className="connection-dot" /> Connected to local API
         </div>
@@ -326,7 +365,8 @@ function ApplicationShell({
         <section className="workspace">
           <div className="page-heading">
             <div>
-              <p className="eyebrow">{commerce ? "BUSINESS TRANSACTIONS" : "CONFIGURATION / MASTER DATA"}</p>
+              <p className="eyebrow">{commerce ? "BUSINESS TRANSACTIONS"
+                : manufacturing ? "MANUFACTURING WORKFLOW" : "CONFIGURATION / MASTER DATA"}</p>
               <h1>{currentLabel}</h1>
               <p className="muted">{commerce
                 ? "Versioned, company-scoped transactions with approval and audit history."
@@ -342,6 +382,13 @@ function ApplicationShell({
               setError={setError}
               onUnauthorized={onUnauthorized}
             />
+            : manufacturing
+              ? <ManufacturingWorkspace
+                key={manufacturing}
+                view={manufacturing}
+                setError={setError}
+                onUnauthorized={onUnauthorized}
+              />
             : current && <ResourceWorkspace
               key={current.key}
               resource={current}

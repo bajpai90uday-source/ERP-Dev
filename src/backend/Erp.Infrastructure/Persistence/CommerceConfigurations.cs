@@ -315,6 +315,11 @@ internal sealed class GoodsReceiptConfiguration : IEntityTypeConfiguration<Goods
         entity.Property(x => x.SupplierDeliveryReference).HasMaxLength(80).IsRequired();
         entity.Property(x => x.CreatedBySubject).HasMaxLength(200).IsRequired();
         entity.HasIndex(x => new { x.CompanyId, x.ReceiptNumber }).IsUnique();
+        entity.HasOne<Warehouse>()
+            .WithMany()
+            .HasForeignKey(x => new { x.CompanyId, x.WarehouseId })
+            .HasPrincipalKey(x => new { x.CompanyId, x.Id })
+            .OnDelete(DeleteBehavior.Restrict);
         entity.HasOne<PurchaseOrderRevision>()
             .WithMany()
             .HasForeignKey(x => new { x.CompanyId, x.PurchaseOrderRevisionId })

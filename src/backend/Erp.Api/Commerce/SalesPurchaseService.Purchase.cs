@@ -1,6 +1,7 @@
 using Erp.Api.MasterData;
 using Erp.Domain.Commerce;
 using Erp.Domain.MasterData;
+using Erp.Domain.Products;
 using Microsoft.EntityFrameworkCore;
 
 namespace Erp.Api.Commerce;
@@ -612,6 +613,16 @@ internal sealed partial class SalesPurchaseService
                         "Goods can only be received against an issued purchase order.");
                 }
 
+                var warehouse = await db.Warehouses.AsNoTracking().SingleOrDefaultAsync(value =>
+                    value.CompanyId == companyId
+                    && value.Id == request.WarehouseId
+                    && value.IsActive, cancellationToken);
+                if (warehouse is null)
+                {
+                    return Invalid<GoodsReceiptResponse>(
+                        "warehouseId", "Choose an active warehouse in this company.");
+                }
+
                 var requestedIds = receiptLines.Select(line => line.PurchaseOrderLineId).ToArray();
                 var currentLines = await db.PurchaseOrderLineRevisions.AsNoTracking()
                     .Where(line => line.CompanyId == companyId
@@ -628,6 +639,36 @@ internal sealed partial class SalesPurchaseService
                     .Where(line => line.CompanyId == companyId
                         && line.PurchaseOrderRevisionId == revision.Id)
                     .ToListAsync(cancellationToken);
+                var stockFactors = new Dictionary<Guid, decimal>();
+                var stockQuantities = new Dictionary<Guid, decimal>();
+                foreach (var line in currentLines)
+                {
+                    var item = await db.Items.AsNoTracking().SingleAsync(value =>
+                        value.CompanyId == companyId && value.Id == line.ItemId, cancellationToken);
+                    var factor = await GetStockConversionFactorAsync(
+                        companyId, item, line.UnitOfMeasureId,
+                        DateOnly.FromDateTime(DateTime.UtcNow), cancellationToken);
+                    if (factor is null)
+                    {
+                        return Invalid<GoodsReceiptResponse>(
+                            "lines", "A valid unit conversion to the item's stock unit is required.");
+                    }
+
+                    stockFactors[line.PurchaseOrderLineId] = factor.Value;
+                }
+                foreach (var input in receiptLines)
+                {
+                    var stockQuantity = decimal.Round(
+                        input.Quantity * stockFactors[input.PurchaseOrderLineId], 6);
+                    if (stockQuantity <= 0m)
+                    {
+                        return Invalid<GoodsReceiptResponse>(
+                            "lines", "Receipt quantity rounds below the item's stock-unit precision.");
+                    }
+
+                    stockQuantities[input.PurchaseOrderLineId] = stockQuantity;
+                }
+
                 var currentLineIds = allCurrentLines
                     .Select(line => line.PurchaseOrderLineId)
                     .ToArray();
@@ -655,19 +696,42 @@ internal sealed partial class SalesPurchaseService
                     CompanyId = companyId,
                     ReceiptNumber = NewDocumentNumber("GR"),
                     PurchaseOrderRevisionId = revision.Id,
+                    WarehouseId = warehouse.Id,
                     SupplierDeliveryReference = request.SupplierDeliveryReference.Trim(),
                     CreatedBySubject = actor.Subject,
                 };
                 db.GoodsReceipts.Add(receipt);
                 foreach (var input in receiptLines)
                 {
-                    db.GoodsReceiptLines.Add(new GoodsReceiptLine
+                    var receiptLine = new GoodsReceiptLine
                     {
                         Id = Guid.NewGuid(),
                         CompanyId = companyId,
                         GoodsReceiptId = receipt.Id,
                         PurchaseOrderLineId = input.PurchaseOrderLineId,
                         Quantity = input.Quantity,
+                    };
+                    db.GoodsReceiptLines.Add(receiptLine);
+                    var itemId = currentLines.Single(line =>
+                        line.PurchaseOrderLineId == input.PurchaseOrderLineId).ItemId;
+                    var balance = await GetOrCreateStockBalanceAsync(
+                        companyId, itemId, warehouse.Id,
+                        InventoryStockStatuses.Quarantine, cancellationToken);
+                    balance.OnHandQuantity += stockQuantities[input.PurchaseOrderLineId];
+                    balance.ConcurrencyVersion++;
+                    db.InventoryLedgerEntries.Add(new InventoryLedgerEntry
+                    {
+                        Id = Guid.NewGuid(),
+                        CompanyId = companyId,
+                        ItemId = itemId,
+                        WarehouseId = warehouse.Id,
+                        StockStatus = InventoryStockStatuses.Quarantine,
+                        TransactionType = "receipt",
+                        Quantity = stockQuantities[input.PurchaseOrderLineId],
+                        ReferenceType = "goods-receipt",
+                        ReferenceId = receipt.Id,
+                        ReferenceLineId = receiptLine.Id,
+                        ActorSubject = actor.Subject,
                     });
                 }
 
@@ -693,7 +757,7 @@ internal sealed partial class SalesPurchaseService
                     new GoodsReceiptLineResponse(line.PurchaseOrderLineId, line.Quantity)).ToArray();
                 return new MasterDataResult<GoodsReceiptResponse>(
                     new GoodsReceiptResponse(receipt.Id, receipt.ReceiptNumber, order.Id,
-                        order.OrderNumber, receipt.SupplierDeliveryReference,
+                        order.OrderNumber, warehouse.Id, receipt.SupplierDeliveryReference,
                         receipt.ReceivedAt, responseLines),
                     StatusCodes.Status201Created,
                     ResourceId: receipt.Id);
@@ -735,7 +799,7 @@ internal sealed partial class SalesPurchaseService
         return new MasterDataResult<GoodsReceiptResponse>(
             new GoodsReceiptResponse(
                 receipt.Id, receipt.ReceiptNumber, order.Id, order.OrderNumber,
-                receipt.SupplierDeliveryReference, receipt.ReceivedAt, lines));
+                receipt.WarehouseId, receipt.SupplierDeliveryReference, receipt.ReceivedAt, lines));
     }
 
     private Task<MasterDataResult<PurchaseRequisitionResponse>> ChangeRequisitionStatusAsync(

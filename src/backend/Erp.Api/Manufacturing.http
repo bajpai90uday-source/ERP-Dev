@@ -1,0 +1,445 @@
+@baseUrl = http://localhost:5238
+@csrf = replace-with-csrf-token
+@sessionCookie = replace-with-authentication-cookie
+@itemId = 00000000-0000-0000-0000-000000000001
+@warehouseId = 00000000-0000-0000-0000-000000000002
+@workOrderId = 00000000-0000-0000-0000-000000000003
+@operationId = 00000000-0000-0000-0000-000000000004
+@salesOrderId = 00000000-0000-0000-0000-000000000005
+@salesOrderLineId = 00000000-0000-0000-0000-000000000006
+@bomVersionId = 00000000-0000-0000-0000-000000000007
+@productionOperationId = 00000000-0000-0000-0000-000000000008
+@jobCardId = 00000000-0000-0000-0000-00000000000b
+@confirmationId = 00000000-0000-0000-0000-00000000000c
+@purchaseOrderId = 00000000-0000-0000-0000-000000000009
+@purchaseOrderLineId = 00000000-0000-0000-0000-00000000000a
+@supplierId = 00000000-0000-0000-0000-00000000000d
+@machineId = 00000000-0000-0000-0000-00000000000e
+@subcontractorId = 00000000-0000-0000-0000-00000000000f
+@jobWorkOrderId = 00000000-0000-0000-0000-000000000010
+@jobWorkMaterialIssueId = 00000000-0000-0000-0000-000000000011
+@jobWorkReceiptId = 00000000-0000-0000-0000-000000000012
+@qualityInspectionId = 00000000-0000-0000-0000-000000000013
+@maintenanceCardId = 00000000-0000-0000-0000-000000000014
+@downtimeId = 00000000-0000-0000-0000-000000000015
+
+### Inventory balances
+GET {{baseUrl}}/api/v1/inventory/balances?itemId={{itemId}}&warehouseId={{warehouseId}}
+Cookie: {{sessionCookie}}
+
+### Inventory adjustment
+POST {{baseUrl}}/api/v1/inventory/adjustments
+Cookie: {{sessionCookie}}
+X-ERP-CSRF: {{csrf}}
+Idempotency-Key: inventory-adjustment-demo
+Content-Type: application/json
+
+{
+  "itemId": "{{itemId}}",
+  "warehouseId": "{{warehouseId}}",
+  "stockStatus": "available",
+  "quantity": 10,
+  "reason": "Opening stock count"
+}
+
+### Calculate material requirements
+POST {{baseUrl}}/api/v1/planning/mrp/requirements
+Cookie: {{sessionCookie}}
+X-ERP-CSRF: {{csrf}}
+Idempotency-Key: mrp-demo
+Content-Type: application/json
+
+{
+  "fromDate": "2030-01-01",
+  "throughDate": "2030-03-31"
+}
+
+### List Work Orders
+GET {{baseUrl}}/api/v1/production/work-orders?page=1&pageSize=25
+Cookie: {{sessionCookie}}
+
+### Create Work Order
+POST {{baseUrl}}/api/v1/production/work-orders
+Cookie: {{sessionCookie}}
+X-ERP-CSRF: {{csrf}}
+Idempotency-Key: work-order-create-demo
+Content-Type: application/json
+
+{
+  "salesOrderId": "{{salesOrderId}}",
+  "salesOrderLineId": "{{salesOrderLineId}}",
+  "bomVersionId": "{{bomVersionId}}",
+  "outputWarehouseId": "{{warehouseId}}",
+  "plannedQuantity": 5,
+  "plannedStartDate": "2030-01-01",
+  "plannedEndDate": "2030-01-15",
+  "operations": [
+    {
+      "productionOperationId": "{{productionOperationId}}",
+      "sequence": 1,
+      "plannedStartDate": "2030-01-01",
+      "plannedEndDate": "2030-01-15"
+    }
+  ]
+}
+
+### Get Work Order
+GET {{baseUrl}}/api/v1/production/work-orders/{{workOrderId}}
+Cookie: {{sessionCookie}}
+
+### Get Work Order material readiness
+GET {{baseUrl}}/api/v1/production/work-orders/{{workOrderId}}/materials
+Cookie: {{sessionCookie}}
+
+### Get Work Order history
+GET {{baseUrl}}/api/v1/production/work-orders/{{workOrderId}}/history
+Cookie: {{sessionCookie}}
+
+### Register a subcontractor profile for an existing supplier
+POST {{baseUrl}}/api/v1/job-work/subcontractors
+Cookie: {{sessionCookie}}
+X-ERP-CSRF: {{csrf}}
+Idempotency-Key: subcontractor-register-demo
+Content-Type: application/json
+
+{
+  "supplierId": "{{supplierId}}",
+  "registrationCode": "SUB-DEMO"
+}
+
+### Create a Job Work Order (replace subcontractorId with registration response)
+POST {{baseUrl}}/api/v1/job-work/orders
+Cookie: {{sessionCookie}}
+X-ERP-CSRF: {{csrf}}
+Idempotency-Key: job-work-order-demo
+Content-Type: application/json
+
+{
+  "subcontractorId": "{{subcontractorId}}",
+  "outputItemId": "{{itemId}}",
+  "outputWarehouseId": "{{warehouseId}}",
+  "plannedQuantity": 10,
+  "unitCharge": 2,
+  "currencyCode": "USD",
+  "expectedReturnDate": "2030-01-15",
+  "materials": [
+    { "itemId": "{{itemId}}", "warehouseId": "{{warehouseId}}", "quantity": 5 }
+  ]
+}
+
+### Dispatch material to subcontractor custody
+POST {{baseUrl}}/api/v1/job-work/orders/{{jobWorkOrderId}}/dispatch
+Cookie: {{sessionCookie}}
+X-ERP-CSRF: {{csrf}}
+Idempotency-Key: job-work-dispatch-demo
+Content-Type: application/json
+
+[
+  { "materialIssueId": "{{jobWorkMaterialIssueId}}", "quantity": 5 }
+]
+
+### Record partial subcontractor receipt (output enters quarantine)
+POST {{baseUrl}}/api/v1/job-work/orders/{{jobWorkOrderId}}/receipts
+Cookie: {{sessionCookie}}
+X-ERP-CSRF: {{csrf}}
+Idempotency-Key: job-work-receipt-demo
+Content-Type: application/json
+
+{
+  "reference": "SUB-DELIVERY-001",
+  "processedQuantity": 8,
+  "rejectedQuantity": 1
+}
+
+### Record subcontractor output inspection
+POST {{baseUrl}}/api/v1/quality/inspections
+Cookie: {{sessionCookie}}
+X-ERP-CSRF: {{csrf}}
+Idempotency-Key: job-work-quality-demo
+Content-Type: application/json
+
+{
+  "stage": "jobwork",
+  "sourceType": "jobwork_receipt",
+  "sourceId": "{{jobWorkReceiptId}}",
+  "sourceLineId": "{{jobWorkReceiptId}}",
+  "itemId": "{{itemId}}",
+  "warehouseId": "{{warehouseId}}",
+  "inspectedQuantity": 9,
+  "acceptedQuantity": 8,
+  "rejectedQuantity": 1,
+  "reworkQuantity": 0,
+  "holdQuantity": 0
+}
+
+### Approve quality inspection as a different actor than inspector
+POST {{baseUrl}}/api/v1/quality/inspections/{{qualityInspectionId}}/approve
+Cookie: {{sessionCookie}}
+X-ERP-CSRF: {{csrf}}
+Idempotency-Key: quality-approval-demo
+Content-Type: application/json
+
+{}
+
+### Create maintenance request and job card
+POST {{baseUrl}}/api/v1/maintenance/requests
+Cookie: {{sessionCookie}}
+X-ERP-CSRF: {{csrf}}
+Idempotency-Key: maintenance-request-demo
+Content-Type: application/json
+
+{
+  "machineId": "{{machineId}}",
+  "requestNumber": "MR-DEMO-001",
+  "description": "Inspect machine vibration",
+  "priority": "high",
+  "assignedTeam": "Maintenance"
+}
+
+### Complete maintenance job card
+POST {{baseUrl}}/api/v1/maintenance/job-cards/{{maintenanceCardId}}/complete
+Cookie: {{sessionCookie}}
+X-ERP-CSRF: {{csrf}}
+Idempotency-Key: maintenance-complete-demo
+Content-Type: application/json
+
+{
+  "summary": "Vibration corrected and tested"
+}
+
+### Start machine downtime linked to a Work Order
+POST {{baseUrl}}/api/v1/maintenance/downtime
+Cookie: {{sessionCookie}}
+X-ERP-CSRF: {{csrf}}
+Idempotency-Key: machine-downtime-demo
+Content-Type: application/json
+
+{
+  "machineId": "{{machineId}}",
+  "workOrderId": "{{workOrderId}}",
+  "reason": "Unexpected machine breakdown",
+  "startedAt": "2030-01-03T08:30:00Z"
+}
+
+### End machine downtime
+POST {{baseUrl}}/api/v1/maintenance/downtime/{{downtimeId}}/end
+Cookie: {{sessionCookie}}
+X-ERP-CSRF: {{csrf}}
+Idempotency-Key: machine-downtime-end-demo
+Content-Type: application/json
+
+{}
+
+### Submit Work Order
+POST {{baseUrl}}/api/v1/production/work-orders/{{workOrderId}}/submit
+Cookie: {{sessionCookie}}
+X-ERP-CSRF: {{csrf}}
+Idempotency-Key: work-order-submit-demo
+Content-Type: application/json
+
+{}
+
+### Approve Work Order (must be a different actor than the submitter)
+POST {{baseUrl}}/api/v1/production/work-orders/{{workOrderId}}/approve
+Cookie: {{sessionCookie}}
+X-ERP-CSRF: {{csrf}}
+Idempotency-Key: work-order-approve-demo
+Content-Type: application/json
+
+{}
+
+### Reject Work Order
+POST {{baseUrl}}/api/v1/production/work-orders/{{workOrderId}}/reject
+Cookie: {{sessionCookie}}
+X-ERP-CSRF: {{csrf}}
+Idempotency-Key: work-order-reject-demo
+Content-Type: application/json
+
+{
+  "reason": "Update the planned schedule before approval."
+}
+
+### Release Work Order (requires approval and sufficient available material)
+POST {{baseUrl}}/api/v1/production/work-orders/{{workOrderId}}/release
+Cookie: {{sessionCookie}}
+X-ERP-CSRF: {{csrf}}
+Idempotency-Key: work-order-release-demo
+Content-Type: application/json
+
+{}
+
+### List production plans (at-risk means due within three days with output outstanding)
+GET {{baseUrl}}/api/v1/planning/production/orders?page=1&pageSize=25
+Cookie: {{sessionCookie}}
+
+### Update an approved Work Order plan before Job Card generation
+PUT {{baseUrl}}/api/v1/planning/production/orders/{{workOrderId}}
+Cookie: {{sessionCookie}}
+X-ERP-CSRF: {{csrf}}
+Idempotency-Key: production-plan-demo
+Content-Type: application/json
+
+{
+  "priority": 2,
+  "plannedStartDate": "2030-01-01",
+  "plannedEndDate": "2030-01-15",
+  "operations": [
+    {
+      "operationId": "{{operationId}}",
+      "targetQuantity": 5,
+      "productionLine": "line-a",
+      "machineId": null,
+      "assignedTeam": "team-a",
+      "plannedStartDate": "2030-01-01",
+      "plannedEndDate": "2030-01-15"
+    }
+  ]
+}
+
+### List Job Cards
+GET {{baseUrl}}/api/v1/production/job-cards?page=1&pageSize=25&workOrderId={{workOrderId}}
+Cookie: {{sessionCookie}}
+
+### Generate Job Cards from an approved Work Order (release generates them automatically)
+POST {{baseUrl}}/api/v1/production/work-orders/{{workOrderId}}/job-cards
+Cookie: {{sessionCookie}}
+X-ERP-CSRF: {{csrf}}
+Idempotency-Key: job-cards-generate-demo
+Content-Type: application/json
+
+{}
+
+### Start Job Card
+POST {{baseUrl}}/api/v1/production/job-cards/{{jobCardId}}/start
+Cookie: {{sessionCookie}}
+X-ERP-CSRF: {{csrf}}
+Idempotency-Key: job-card-start-demo
+Content-Type: application/json
+
+{}
+
+### Hold Job Card
+POST {{baseUrl}}/api/v1/production/job-cards/{{jobCardId}}/hold
+Cookie: {{sessionCookie}}
+X-ERP-CSRF: {{csrf}}
+Idempotency-Key: job-card-hold-demo
+Content-Type: application/json
+
+{
+  "reason": "Machine maintenance"
+}
+
+### Resume Job Card
+POST {{baseUrl}}/api/v1/production/job-cards/{{jobCardId}}/resume
+Cookie: {{sessionCookie}}
+X-ERP-CSRF: {{csrf}}
+Idempotency-Key: job-card-resume-demo
+Content-Type: application/json
+
+{}
+
+### Submit classified production quantities for approval
+POST {{baseUrl}}/api/v1/production/job-cards/{{jobCardId}}/confirmations
+Cookie: {{sessionCookie}}
+X-ERP-CSRF: {{csrf}}
+Idempotency-Key: production-confirmation-demo
+Content-Type: application/json
+
+{
+  "goodQuantity": 3,
+  "rejectedQuantity": 1,
+  "reworkQuantity": 1,
+  "scrapQuantity": 0,
+  "shift": "day",
+  "productionLine": "line-a",
+  "machineId": null,
+  "team": "team-a",
+  "startedAt": "2030-01-02T08:00:00Z",
+  "completedAt": "2030-01-02T16:00:00Z"
+}
+
+### Get production confirmation
+GET {{baseUrl}}/api/v1/production/confirmations/{{confirmationId}}
+Cookie: {{sessionCookie}}
+
+### Approve confirmation (must be a different actor than the submitter)
+POST {{baseUrl}}/api/v1/production/confirmations/{{confirmationId}}/approve
+Cookie: {{sessionCookie}}
+X-ERP-CSRF: {{csrf}}
+Idempotency-Key: production-confirmation-approve-demo
+Content-Type: application/json
+
+{}
+
+### Correct approved quantities (correction requires separate supervisor approval)
+POST {{baseUrl}}/api/v1/production/confirmations/{{confirmationId}}/corrections
+Cookie: {{sessionCookie}}
+X-ERP-CSRF: {{csrf}}
+Idempotency-Key: production-confirmation-correction-demo
+Content-Type: application/json
+
+{
+  "goodQuantity": 2,
+  "rejectedQuantity": 1,
+  "reworkQuantity": 1,
+  "scrapQuantity": 1,
+  "reason": "Reclassify one accepted unit as scrap."
+}
+
+### Hold Work Order
+POST {{baseUrl}}/api/v1/production/work-orders/{{workOrderId}}/hold
+Cookie: {{sessionCookie}}
+X-ERP-CSRF: {{csrf}}
+Idempotency-Key: work-order-hold-demo
+Content-Type: application/json
+
+{
+  "reason": "Machine maintenance"
+}
+
+### Legacy operation completion route (production output now completes operations)
+POST {{baseUrl}}/api/v1/production/work-orders/{{workOrderId}}/operations/{{operationId}}/complete
+Cookie: {{sessionCookie}}
+X-ERP-CSRF: {{csrf}}
+Idempotency-Key: work-order-operation-complete-demo
+Content-Type: application/json
+
+{}
+
+### Complete Work Order (requires approved production confirmation and consumes material reservations)
+POST {{baseUrl}}/api/v1/production/work-orders/{{workOrderId}}/complete
+Cookie: {{sessionCookie}}
+X-ERP-CSRF: {{csrf}}
+Idempotency-Key: work-order-complete-demo
+Content-Type: application/json
+
+{}
+
+### Cancel Work Order
+POST {{baseUrl}}/api/v1/production/work-orders/{{workOrderId}}/cancel
+Cookie: {{sessionCookie}}
+X-ERP-CSRF: {{csrf}}
+Idempotency-Key: work-order-cancel-demo
+Content-Type: application/json
+
+{
+  "reason": "Production plan withdrawn"
+}
+
+### Receive against a purchase order (warehouse is required)
+POST {{baseUrl}}/api/v1/purchase/orders/{{purchaseOrderId}}/receipts
+Cookie: {{sessionCookie}}
+X-ERP-CSRF: {{csrf}}
+Idempotency-Key: goods-receipt-demo
+Content-Type: application/json
+
+{
+  "warehouseId": "{{warehouseId}}",
+  "supplierDeliveryReference": "delivery-note-001",
+  "lines": [
+    {
+      "purchaseOrderLineId": "{{purchaseOrderLineId}}",
+      "quantity": 4
+    }
+  ]
+}

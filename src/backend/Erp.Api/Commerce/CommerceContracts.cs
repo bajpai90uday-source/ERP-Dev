@@ -236,6 +236,9 @@ internal sealed record GoodsReceiptLineRequest
 /// <summary>Supplier delivery quantities to record against an issued purchase order.</summary>
 internal sealed record GoodsReceiptRequest
 {
+    [Required]
+    public Guid WarehouseId { get; init; }
+
     [Required, StringLength(80, MinimumLength = 1)]
     public required string SupplierDeliveryReference { get; init; }
 
@@ -249,6 +252,7 @@ internal sealed record GoodsReceiptResponse(
     string ReceiptNumber,
     Guid PurchaseOrderId,
     string PurchaseOrderNumber,
+    Guid? WarehouseId,
     string SupplierDeliveryReference,
     DateTimeOffset ReceivedAt,
     IReadOnlyList<GoodsReceiptLineResponse> Lines);

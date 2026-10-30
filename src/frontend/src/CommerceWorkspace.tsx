@@ -74,6 +74,7 @@ interface Options {
   items: SelectOption[];
   units: SelectOption[];
   requisitions: (SelectOption & { status: string; lines: CommerceLine[] })[];
+  warehouses: SelectOption[];
 }
 
 interface Props {
@@ -189,7 +190,7 @@ export default function CommerceWorkspace({ kind, setError, onUnauthorized }: Pr
 
   const loadFormOptions = async () => {
     if (options) return options;
-    const [customers, suppliers, products, variants, items, units, requisitions] =
+    const [customers, suppliers, products, variants, items, units, requisitions, warehouses] =
       await Promise.all([
         loadOptions("/api/v1/master-data/customers"),
         loadOptions("/api/v1/master-data/suppliers"),
@@ -198,6 +199,7 @@ export default function CommerceWorkspace({ kind, setError, onUnauthorized }: Pr
         loadOptions("/api/v1/master-data/items"),
         loadOptions("/api/v1/master-data/units"),
         loadOptions("/api/v1/purchase/requisitions"),
+        loadOptions("/api/v1/master-data/warehouses"),
       ]);
     const loaded: Options = {
       customers: customers.map(optionOf),
@@ -214,6 +216,7 @@ export default function CommerceWorkspace({ kind, setError, onUnauthorized }: Pr
         status: String(value.status),
         lines: (value.lines as CommerceLine[]) ?? [],
       })),
+      warehouses: warehouses.map(optionOf),
     };
     setOptions(loaded);
     return loaded;
@@ -225,6 +228,18 @@ export default function CommerceWorkspace({ kind, setError, onUnauthorized }: Pr
     try {
       await loadFormOptions();
       setDialog({ type: "edit", record, amendment });
+    } catch (requestError) {
+      if (isUnauthorized(requestError)) onUnauthorized();
+      else setError(messageOf(requestError));
+    }
+  };
+
+  const openReceipt = async (record: CommerceRecord) => {
+    setDialogError("");
+    setError("");
+    try {
+      await loadFormOptions();
+      setDialog({ type: "receive", record });
     } catch (requestError) {
       if (isUnauthorized(requestError)) onUnauthorized();
       else setError(messageOf(requestError));
@@ -368,10 +383,7 @@ export default function CommerceWorkspace({ kind, setError, onUnauthorized }: Pr
                       {kind === "purchase-orders"
                         && ["issued", "partially_received", "received"].includes(record.status)
                         && <>
-                          <button className="text-button" onClick={() => {
-                            setDialogError("");
-                            setDialog({ type: "receive", record });
-                          }}>Receive</button>
+                          <button className="text-button" onClick={() => void openReceipt(record)}>Receive</button>
                           <button className="text-button" onClick={() =>
                             void openEditor(record, true)}>Amend</button>
                         </>}
@@ -461,7 +473,7 @@ export default function CommerceWorkspace({ kind, setError, onUnauthorized }: Pr
             })}
         />
       )}
-      {dialog?.type === "receive" && (
+      {dialog?.type === "receive" && options && (
         <QuantityDialog
           title={`Record goods receipt · ${label(dialog.record)}`}
           fieldLabel="Supplier delivery reference"
@@ -475,9 +487,11 @@ export default function CommerceWorkspace({ kind, setError, onUnauthorized }: Pr
             }))}
           busy={busy}
           error={dialogError}
+          warehouseOptions={options.warehouses}
           onClose={() => setDialog(null)}
-          onSubmit={(reference, lineId, quantity) =>
+          onSubmit={(reference, lineId, quantity, warehouseId) =>
             void command(dialog.record, "receipts", {
+              warehouseId,
               supplierDeliveryReference: reference,
               lines: [{ purchaseOrderLineId: lineId, quantity: Number(quantity) }],
             })}
@@ -790,6 +804,7 @@ function QuantityDialog({
   fieldLabel,
   lineLabel,
   lines,
+  warehouseOptions,
   busy,
   error,
   onClose,
@@ -799,19 +814,21 @@ function QuantityDialog({
   fieldLabel: string;
   lineLabel: string;
   lines: { id: string; label: string; maximum: number }[];
+  warehouseOptions?: SelectOption[];
   busy: boolean;
   error: string;
   onClose: () => void;
-  onSubmit: (reference: string, lineId: string, quantity: string) => void;
+  onSubmit: (reference: string, lineId: string, quantity: string, warehouseId: string) => void;
 }) {
   const [reference, setReference] = useState("");
   const [lineId, setLineId] = useState(lines[0]?.id ?? "");
+  const [warehouseId, setWarehouseId] = useState(warehouseOptions?.[0]?.id ?? "");
   const selectedLine = lines.find(line => line.id === lineId);
   const [quantity, setQuantity] = useState(selectedLine ? String(selectedLine.maximum) : "");
   return (
     <div className="modal-backdrop">
       <form className="record-dialog" role="dialog" aria-modal="true"
-        onSubmit={event => { event.preventDefault(); onSubmit(reference, lineId, quantity); }}>
+        onSubmit={event => { event.preventDefault(); onSubmit(reference, lineId, quantity, warehouseId); }}>
         <header className="dialog-heading"><h2>{title}</h2></header>
         {error && <div className="alert" role="alert">{error}</div>}
         {lines.length === 0 ? <p className="muted">There is no outstanding quantity to record.</p> : <>
@@ -828,6 +845,12 @@ function QuantityDialog({
           <label>Quantity<input required type="number" min="0.000001" step="0.000001"
             max={selectedLine?.maximum} value={quantity}
             onChange={event => setQuantity(event.target.value)} /></label>
+          {warehouseOptions && <label>Receipt warehouse<select required value={warehouseId}
+            onChange={event => setWarehouseId(event.target.value)}>
+            <option value="">Select warehouse</option>
+            {warehouseOptions.map(option =>
+              <option key={option.id} value={option.id}>{option.label}</option>)}
+          </select></label>}
         </>}
         <footer className="dialog-actions">
           <button type="button" className="secondary-button" onClick={onClose}>Close</button>

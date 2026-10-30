@@ -340,6 +340,16 @@ internal sealed partial class SalesPurchaseService
                         "A fulfilled sales order cannot be amended in this release.");
                 }
 
+                if (await db.WorkOrders.AnyAsync(workOrder =>
+                        workOrder.CompanyId == companyId
+                        && priorLines.Contains(workOrder.SalesOrderLineId)
+                        && workOrder.Status != WorkOrderStatuses.Cancelled,
+                        cancellationToken))
+                {
+                    return Conflict<SalesOrderResponse>(
+                        "Cancel linked Work Orders before amending the confirmed sales order.");
+                }
+
                 var revision = NewSalesRevision(
                     companyId, order.Id, order.CurrentRevisionNumber + 1, actor, request);
                 order.CurrentRevisionNumber = revision.RevisionNumber;
