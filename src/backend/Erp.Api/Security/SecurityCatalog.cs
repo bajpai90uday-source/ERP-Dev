@@ -11,10 +11,10 @@ internal static class SecurityCatalog
     private static readonly IReadOnlyDictionary<string, string[]> ModuleActions =
         new Dictionary<string, string[]>(StringComparer.Ordinal)
         {
-            ["sales"] = ["read", "create", "update", "delete", "submit", "approve", "export"],
+            ["sales"] = ["read", "create", "update", "delete", "submit", "approve", "confirm", "amend", "fulfill", "export"],
             ["customers"] = ["read", "create", "update", "deactivate"],
             ["suppliers"] = ["read", "create", "update", "deactivate"],
-            ["purchase"] = ["read", "create", "update", "submit", "approve", "receive", "export"],
+            ["purchase"] = ["read", "create", "update", "submit", "approve", "issue", "amend", "receive", "export"],
             ["items"] = ["read", "create", "update", "deactivate"],
             ["itemcategories"] = ["read", "create", "update", "deactivate"],
             ["uom"] = ["read", "create", "update", "deactivate"],

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import CommerceWorkspace from "./CommerceWorkspace";
 import {
   api,
   ApiError,
@@ -251,7 +252,16 @@ function ApplicationShell({
   onUnauthorized: () => void;
 }) {
   const [selected, setSelected] = useState(resources[0].key);
-  const current = resources.find((resource) => resource.key === selected) ?? resources[0];
+  const current = resources.find((resource) => resource.key === selected);
+  const commerce = selected === "sales-orders"
+    || selected === "purchase-requisitions"
+    || selected === "purchase-orders"
+    ? selected
+    : null;
+  const currentLabel = current?.label
+    ?? (commerce === "sales-orders" ? "Sales orders"
+      : commerce === "purchase-requisitions" ? "Purchase requisitions"
+        : commerce === "purchase-orders" ? "Purchase orders" : "Workspace");
 
   return (
     <div className="app-shell">
@@ -277,13 +287,33 @@ function ApplicationShell({
             </button>
           ))}
         </nav>
+        <p className="nav-caption">ORDER MANAGEMENT</p>
+        <nav aria-label="Order management">
+          {([
+            ["sales-orders", "Sales orders"],
+            ["purchase-requisitions", "Purchase requisitions"],
+            ["purchase-orders", "Purchase orders"],
+          ] as const).map(([key, label]) => (
+            <button
+              className={`nav-item ${selected === key ? "selected" : ""}`}
+              key={key}
+              onClick={() => {
+                setSelected(key);
+                setError("");
+              }}
+            >
+              <span className="nav-dot" />
+              {label}
+            </button>
+          ))}
+        </nav>
         <div className="sidebar-footer">
           <span className="connection-dot" /> Connected to local API
         </div>
       </aside>
       <main className="main-content">
         <header className="topbar">
-          <div className="breadcrumb">Workspace <span>/</span> {current.label}</div>
+          <div className="breadcrumb">Workspace <span>/</span> {currentLabel}</div>
           <div className="profile">
             <div className="avatar">{session.displayName.slice(0, 1).toUpperCase()}</div>
             <div className="profile-copy">
@@ -296,19 +326,28 @@ function ApplicationShell({
         <section className="workspace">
           <div className="page-heading">
             <div>
-              <p className="eyebrow">CONFIGURATION / MASTER DATA</p>
-              <h1>{current.label}</h1>
-              <p className="muted">Company-scoped records managed through the ERP API.</p>
+              <p className="eyebrow">{commerce ? "BUSINESS TRANSACTIONS" : "CONFIGURATION / MASTER DATA"}</p>
+              <h1>{currentLabel}</h1>
+              <p className="muted">{commerce
+                ? "Versioned, company-scoped transactions with approval and audit history."
+                : "Company-scoped records managed through the ERP API."}</p>
             </div>
             <span className="company-chip">Company {session.companyId.slice(0, 8)}</span>
           </div>
           {error && <div className="alert workspace-alert" role="alert">{error}</div>}
-          <ResourceWorkspace
-            key={current.key}
-            resource={current}
-            setError={setError}
-            onUnauthorized={onUnauthorized}
-          />
+          {commerce
+            ? <CommerceWorkspace
+              key={commerce}
+              kind={commerce}
+              setError={setError}
+              onUnauthorized={onUnauthorized}
+            />
+            : current && <ResourceWorkspace
+              key={current.key}
+              resource={current}
+              setError={setError}
+              onUnauthorized={onUnauthorized}
+            />}
         </section>
       </main>
     </div>

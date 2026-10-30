@@ -21,6 +21,7 @@ internal sealed class ProductVariantConfiguration : IEntityTypeConfiguration<Pro
     public void Configure(EntityTypeBuilder<ProductVariant> entity)
     {
         MappingRules.ConfigureCompanyScoped(entity, "ProductVariants");
+        entity.HasAlternateKey(x => new { x.CompanyId, x.ProductId, x.Id });
         MappingRules.ConfigureCodeAndName(entity);
         entity.Property(x => x.SizeCode).HasMaxLength(40);
         entity.Property(x => x.ColorCode).HasMaxLength(40);

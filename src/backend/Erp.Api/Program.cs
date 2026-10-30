@@ -1,5 +1,6 @@
 using Erp.Api.Security;
 using Erp.Api.MasterData;
+using Erp.Api.Commerce;
 using Erp.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
@@ -15,6 +16,7 @@ builder.Services.AddDbContext<ErpDbContext>(options =>
 builder.Services.AddErpSecurity(builder.Configuration);
 builder.Services.AddOpenApi();
 builder.Services.AddScoped<IMasterDataService, MasterDataService>();
+builder.Services.AddScoped<ISalesPurchaseService, SalesPurchaseService>();
 
 var app = builder.Build();
 if (!app.Environment.IsDevelopment())
@@ -36,6 +38,7 @@ if (app.Environment.IsDevelopment())
 
 app.MapSecurityEndpoints(builder.Configuration);
 app.MapMasterDataEndpoints();
+app.MapCommerceEndpoints();
 
 app.Run();
 

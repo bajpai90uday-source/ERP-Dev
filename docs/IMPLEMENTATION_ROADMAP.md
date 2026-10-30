@@ -56,11 +56,15 @@ Implement buyer PO, Sales Order lines/delivery schedules, approval/rejection/ame
 
 **Gate:** unique demand creation under retry; unauthorized/self-approval and confirmed-edit rules pass; all orders trace to buyer reference and product/variant.
 
+The Sales Order transaction slice now covers buyer references, product/variant lines, separated submission/approval/confirmation, numbered amendments, partial fulfillment, idempotent commands, permissions, history, and a frontend workspace. This records commercial fulfillment only; it does not create demand allocations or inventory postings. See [Sales and Purchase workflows](./SALES_PURCHASE_WORKFLOWS.md) for implemented scope and verification status.
+
 ### Phase 5 — Inventory ledger, procurement, and MRP
 
 Build inventory posting foundation before purchase/production postings: receipt, status, reservation, availability, issue/return, transfer, count/adjustment, lot/batch, reconciliation, and chosen valuation policy. Implement requisition/approval, optional RFQ, PO, partial receipt, inspection disposition, then time-phased MRP suggestions.
 
 **Gate:** PostgreSQL tests verify migrations, ledger projection rebuild, status eligibility, idempotency, transaction rollback, negative-stock prevention, concurrency, receipt/inspection, reservation, and valuation allocations/reversals. MRP results explain their inputs and never auto-purchase.
+
+The initial Purchase Requisition/Purchase Order workflow and traceable partial goods-receipt capture are implemented, including outstanding quantities and requisition commitment checks. Receipts deliberately do not post inventory. Do not start inventory valuation or MRP until the transaction flows and PostgreSQL migration/concurrency gates are verified.
 
 ### Phase 6 — Planning and work execution
 
