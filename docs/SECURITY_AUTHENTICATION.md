@@ -26,7 +26,7 @@ Fetch an antiforgery request token from `GET /api/v1/auth/csrf`, retain its cook
   "companyName": "Example Manufacturing",
   "adminEmail": "administrator@example.invalid",
   "adminDisplayName": "ERP Administrator",
-  "adminPassword": "<unique password of at least 12 characters>"
+  "adminPassword": "Bbbbbbbbb78$"
 }
 ```
 
